@@ -443,15 +443,15 @@
       
         // 1) If user hasn't touched "Replace with", auto-generate a placeholder
         fromInput.addEventListener('input', e => {
-          if (tr.dataset.toTouched === 'false') {
-            const len = e.target.value.length;
-            toInput.value = generateUUID(len);
-            updateCurrentReplacementsFromTable();
-            saveUI();
-            updateHashes();
+          if (toInput.value.trim() === '') {
+            toInput.value = generateUUID();
+            tr.dataset.toTouched = 'false';
           }
+          updateCurrentReplacementsFromTable();
+          saveUI();
+          updateHashes();
         });
-      
+
         // 2) Lock once user types in "Replace with"
         toInput.addEventListener('input', () => {
             if (toInput.value === '') {
