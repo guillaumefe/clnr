@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Clnr – Text Replacer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html,body {background:#f4f5f6; margin:0; min-height:100vh; font-family:sans-serif;}
+    body {position:relative;}
+    .container {
+      display:flex; flex-wrap:wrap; gap:2rem; padding:2rem; justify-content:center;
+    }
+    .box {
+      background:#fff; border-radius:1.1rem; box-shadow:0 3px 16px #0001;
+      padding:1.25rem; min-width:260px; flex:1 1 320px; max-width:500px;
+      display:flex; flex-direction:column; gap:1rem;
+    }
+    .label {font-weight:bold; margin-bottom:.35em; color:#262e36;}
+    .editable,.result {
+      min-height:108px; border:1px solid #ddd; border-radius:0.6em;
+      padding:.7em .9em; background:#fcfcfc; outline:none; font-size:1.06rem; overflow-y:auto;
+      color:#222; transition: border .18s;
+    }
+    .editable:focus {border-color: #5f9e7b;}
+    .result {background:#f7faf8;}
+    table {width:100%; border-collapse:separate; border-spacing:0 4px;}
+    td {padding:2px 4px;}
+    input[type="text"] {
+      width:100%; padding:5px; border-radius:0.4em; border:1px solid #ccc; font-size:1em; background:#f9f9f9;
+    }
+    .replace-row input { min-width:70px; }
+    .btn {
+      background:#3e5c4e; color:white; border:none; border-radius:0.5em;
+      padding:.65em 1.1em; font-size:1em; cursor:pointer; margin-top:1em;
+      align-self:flex-end; transition:background .14s;
+    }
+    .btn:active {background:#304b3e;}
+    .add-row {
+      background:#e5e6e7; color:#2d3436; padding:.32em 1em; border-radius:.5em;
+      font-size:.97em; margin-top:.4em; cursor:pointer; border:none;
+      transition:background .15s;
+    }
+    .add-row:hover {background:#5f9e7b;color:#fff;}
+    .tool-row {display:flex; flex-wrap:wrap; gap:.7em;}
+    .tool-row button {padding:0.47em 1em; font-size:.97em; border-radius:.5em;}
+    #toast {
+      position:fixed; left:50%; bottom:2.2rem; transform:translateX(-50%);
+      background:#262e36; color:#fff; padding:.78em 1.4em; border-radius:1em;
+      font-size:1.05em; box-shadow:0 2px 12px #0003; z-index:2222;
+      opacity:0; pointer-events:none; transition:opacity .26s, bottom .26s;
+      display:flex; gap:.7em; align-items:center;
+    }
+    #toast.visible { opacity:1; bottom:3.1rem; pointer-events:auto;}
+    .modal {
+      position:fixed; left:0;top:0;right:0;bottom:0;z-index:3000;
+      background:rgba(36,45,56,0.08); display:flex;align-items:center;justify-content:center;
+    }
+    .modal-box {
+      background:#fff; border-radius:.95em; box-shadow:0 2px 12px #0002;
+      padding:1.3em 1.1em; text-align:center; min-width:210px; max-width:92vw;
+      display:flex;flex-direction:column;gap:1.1em;
+    }
+    .modal-box input[type=password] {font-size:1.07em; border-radius:.4em; padding:.65em; border:1px solid #bbb;}
+    .modal-box button {font-size:1em; border-radius:.4em; padding:.6em 1.05em;}
+    /* SPLASH PAGE */
+    #pw-modal.splash {
+      background:linear-gradient(125deg,#f6f7fa 0%,#e7ebef 100%);
+      min-height:100vh;
+    }
+    .splash-box {
+      max-width:340px; min-width:0; width:92vw; box-shadow:0 2px 18px #2221;
+      background:#fff; border-radius:1.4em; padding:2em 1.2em 1.2em 1.2em;
+      display:flex;flex-direction:column;gap:1.2em;align-items:center;margin:0 auto;
+      animation: fadeInSplash .7s;
+    }
+    .splash-box form {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    @keyframes fadeInSplash {from{transform:scale(.98) translateY(32px); opacity:0;}to{opacity:1;}}
+    .clnr-logo {
+      font-size:2.05em; font-weight:700; letter-spacing:-0.04em; color:#304b3e;
+      text-shadow: 0 1px 0 #e9ecef;
+      font-family: "Segoe UI", "Inter", Arial, sans-serif;
+      margin-bottom:0.12em;
+    }
+    .slogan {
+      color:#3e5c4e;font-size:1.11em;margin-top:.07em;margin-bottom:.3em; font-weight:500;
+      font-family: "Segoe UI", "Inter", Arial, sans-serif;
+    }
+    .desc {
+      color:#222;font-size:1.01em; margin-bottom:0.7em;line-height:1.6;
+      font-family: "Segoe UI", "Inter", Arial, sans-serif;
+    }
+    .pw-input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: .8em .9em;
+      font-size: 1.07em;
+      border-radius: 0.5em;
+      border: 1px solid #bbb;
+      margin-bottom: .5em;
+      background: #fff;
+      outline: none;
+      transition: border 0.18s, box-shadow 0.18s;
+      display: block;
+    }
+    .pw-input:focus {
+      border-color: #3e5c4e;
+      box-shadow: 0 0 0 2px #d7ebe3;
+    }
+    .reset-btn {
+      margin-top:.7em;
+      background:#ddd; color:#7c2222;border:none;padding:.44em 1.1em;border-radius:0.6em; font-size:.97em;
+      cursor:pointer;transition:background .13s;
+    }
+    .reset-btn:hover {background:#cfd5dc;}
+    .small-txt {color:#888;font-size:.97em;}
+    @media (max-width: 900px) {
+      .container {flex-direction:column; padding:1.2rem;}
+      .box{max-width:100%; min-width:0;}
+      .splash-box {max-width:99vw;}
+    }
+    @media (max-width: 540px) {
+      .container {padding:.55em;}
+      .splash-box {padding:1.2em .3em .7em .3em;}
+      .box {padding:.8em;}
+      .editable, .result {font-size:.98em;}
+    }
+  </style>
+</head>
+<body>
+  <h1 style="display:none">Clnr – Text Replacer</h1>
+  <!-- Splash Page Password Modal -->
+  <div id="pw-modal" class="modal splash" style="display:flex;">
+    <div class="splash-box">
+      <div class="clnr-logo">
+        Clnr
+      </div>
+      <div class="slogan">Find & replace, made simple</div>
+      <div class="desc">
+        Find & replace multiple words and phrases instantly, safely on your device.<br>
+        Your data stays private and encrypted. <br>
+      </div>
+      <form onsubmit="submitPassword();return false" style="width:100%;">
+        <input id="pw-input" type="password" placeholder="Enter your password..." autocomplete="current-password" class="pw-input">
+        <button type="submit" style="background:#3e5c4e;color:#fff;border:none;width:100%;padding:.7em 0;font-size:1.08em;border-radius:.6em;">Access Clnr</button>
+      </form>
+      <div id="pw-err" style="color:#e74c3c;font-size:.98em;min-height:1.2em;min-height:1.3em;"></div>
+      <button type="button" class="reset-btn" onclick="confirmReset()">Reset app (forgot password?)</button>
+      <div class="small-txt">This erases all local data. No recovery possible.</div>
+    </div>
+  </div>
+  <!-- Password modal for export/import -->
+  <div id="modal-overlay" class="modal" style="display:none;">
+    <div class="modal-box">
+      <div id="modal-title" style="font-size:1.11em; font-weight:bold;"></div>
+      <input id="modal-pw" type="password" placeholder="Password..." autocomplete="current-password" autofocus>
+      <button id="modal-ok" style="background:#3e5c4e;color:#fff;border:none;">OK</button>
+      <button onclick="closeModal()" style="background:#e5e6e7;color:#333;border:none;">Cancel</button>
+      <div id="modal-err" style="color:#e74c3c;font-size:.97em;min-height:1.2em"></div>
+    </div>
+  </div>
+  <div class="container" id="main-ui" style="display:none;">
+    <div class="box">
+      <div class="label">Your text:</div>
+      <div id="editable" class="editable" contenteditable="true" spellcheck="true" aria-label="Text to process"></div>
+      <div class="label" style="margin-top:1em;">Replacements (find → replace with):</div>
+      <table id="replace-table">
+        <tbody id="replace-tbody"></tbody>
+      </table>
+      <button type="button" class="add-row" onclick="addRow()">+ Add replacement</button>
+      <div class="tool-row" style="margin-top:.8em;">
+        <button class="btn" onclick="doReplace()">Replace</button>
+        <button class="btn" style="background:#777;" onclick="copyResult()">Copy result</button>
+        <button class="btn" style="background:#e5e6e7; color:#2d3436;" onclick="openExportModal()">Export list</button>
+        <button class="btn" style="background:#e5e6e7; color:#2d3436;" onclick="openImportModal()">Import list</button>
+      </div>
+    </div>
+    <div class="box">
+      <div class="label">Result:</div>
+      <div id="result" class="result" contenteditable="true" readonly></div>
+    </div>
+  </div>
+  <div id="toast"></div>
+  <input type="file" id="importFile" accept=".encjson,application/octet-stream" style="display:none" onchange="onImportFile(event)">
+  <script>
+    // --- UI STATE ---
+    let masterPW = '';
+    let cachedData = null;
+    const DB_NAME = "smartRichText";
+    const DB_STORE = "main";
+    let db = null;
+
+    // --- BASIC ENCRYPTION ---
+    async function digest(str) {
+      return await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    }
+    function toHex(arrayBuffer) {
+      return [...new Uint8Array(arrayBuffer)].map(x=>x.toString(16).padStart(2,'0')).join('');
+    }
+    function fromHex(str) {
+      return Uint8Array.from(str.match(/.{2}/g).map(b=>parseInt(b,16)));
+    }
+    async function getKey(pw) {
+      let pwBytes = new TextEncoder().encode(pw);
+      let keyMaterial = await window.crypto.subtle.importKey(
+        "raw", pwBytes, {name:"PBKDF2"}, false, ["deriveKey"]);
+      return await window.crypto.subtle.deriveKey(
+        {name:"PBKDF2",salt:pwBytes,iterations:50000,hash:"SHA-256"},
+        keyMaterial,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+    }
+    async function encryptData(obj, pw) {
+      let key = await getKey(pw);
+      let iv = window.crypto.getRandomValues(new Uint8Array(12));
+      let data = new TextEncoder().encode(JSON.stringify(obj));
+      let ct = await window.crypto.subtle.encrypt({name:"AES-GCM",iv}, key, data);
+      let ivhex = toHex(iv);
+      let cthex = toHex(ct);
+      return ivhex + ':' + cthex;
+    }
+    async function decryptData(enc, pw) {
+      try {
+        let [ivhex, cthex] = enc.split(':');
+        let iv = fromHex(ivhex);
+        let ct = fromHex(cthex);
+        let key = await getKey(pw);
+        let plain = await window.crypto.subtle.decrypt({name:"AES-GCM",iv},key,ct);
+        return JSON.parse(new TextDecoder().decode(plain));
+      } catch (e) { return null; }
+    }
+
+    // --- INDEXEDDB ---
+    function openDB() {
+      return new Promise((res,rej)=>{
+        let r = indexedDB.open(DB_NAME,1);
+        r.onerror=()=>rej(r.error);
+        r.onupgradeneeded=()=>{r.result.createObjectStore(DB_STORE);}
+        r.onsuccess=()=>{db=r.result;res();}
+      });
+    }
+    function saveToDB(obj) {
+      return new Promise(async (res,rej)=>{
+        let enc = await encryptData(obj, masterPW);
+        let tx = db.transaction(DB_STORE, "readwrite");
+        let store = tx.objectStore(DB_STORE);
+        store.put(enc, "data");
+        tx.oncomplete=()=>res();
+        tx.onerror=()=>rej(tx.error);
+      });
+    }
+    function loadFromDB() {
+      return new Promise((res,rej)=>{
+        let tx = db.transaction(DB_STORE, "readonly");
+        let store = tx.objectStore(DB_STORE);
+        let getReq = store.get("data");
+        getReq.onsuccess=()=>res(getReq.result);
+        getReq.onerror=()=>rej(getReq.error);
+      });
+    }
+
+    // --- UI LOGIC ---
+    function showToast(msg, success=true) {
+      let toast = document.getElementById('toast');
+      toast.innerHTML = (success
+        ? `<svg width="22" height="22" style="vertical-align:middle"><circle cx="11" cy="11" r="11" fill="#5f9e7b"/><path d="M7 11l3 3 5-5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`
+        : `<svg width="22" height="22"><circle cx="11" cy="11" r="11" fill="#e74c3c"/><path d="M7 7l8 8M15 7l-8 8" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`
+      )+`<span style="margin-left:.8em">${msg}</span>`;
+      toast.className = 'visible';
+      setTimeout(()=>{toast.className='';}, 1800);
+    }
+    // Add/Remove/Reset replacement row
+    function addRow(valFrom = '', valTo = '') {
+      const tbody = document.getElementById('replace-tbody');
+      const tr = document.createElement('tr');
+      tr.className = "replace-row";
+      tr.innerHTML = `
+        <td><input type="text" placeholder="Find" value="${valFrom}"></td>
+        <td style="width:26px; text-align:center;">→</td>
+        <td><input type="text" placeholder="Replace with" value="${valTo}"></td>
+        <td>
+          <button type="button" style="background:#eee;color:#a94442;border:none;border-radius:0.5em;padding:2px 10px;cursor:pointer;font-size:.96em;" title="Remove" onclick="removeRow(this)">✖</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+      saveUI();
+    }
+    function removeRow(btn) {
+      btn.closest('tr').remove();
+      saveUI();
+    }
+    function getReplacements() {
+      const rows = document.querySelectorAll('#replace-tbody tr');
+      const replaces = [];
+      rows.forEach(row => {
+        const from = row.children[0].querySelector('input').value;
+        const to = row.children[2].querySelector('input').value;
+        if (from) replaces.push({ from, to });
+      });
+      return replaces;
+    }
+    function setReplacements(replaces) {
+      const tbody = document.getElementById('replace-tbody');
+      tbody.innerHTML = '';
+      if (!replaces || replaces.length === 0) addRow();
+      else replaces.forEach(x=>addRow(x.from, x.to));
+    }
+    function doReplace() {
+      const editable = document.getElementById('editable');
+      const resultDiv = document.getElementById('result');
+      let html = editable.innerHTML;
+      const replaces = getReplacements();
+      // DOM traversal, only replace text nodes
+      const parser = new DOMParser();
+      const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
+      const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+      let node;
+      while ((node = walker.nextNode())) {
+        let txt = node.nodeValue;
+        replaces.forEach(({from, to}) => {
+          if (!from) return;
+          let regex = new RegExp(escapeRegExp(from), 'gi');
+          txt = txt.replace(regex, to);
+        });
+        node.nodeValue = txt;
+      }
+      resultDiv.innerHTML = doc.body.innerHTML;
+    }
+    function escapeRegExp(str) {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    // --- Copy Result ---
+    async function copyResult() {
+      let resultDiv = document.getElementById('result');
+      let html = resultDiv.innerHTML;
+      let ok = false;
+      if (navigator.clipboard && window.ClipboardItem) {
+        try {
+          let blob = new Blob([html], {type: "text/html"});
+          await navigator.clipboard.write([new ClipboardItem({"text/html": blob, "text/plain": new Blob([resultDiv.innerText], {type:"text/plain"})})]);
+          showToast("Copied!", true);
+          ok = true;
+        } catch (e) {}
+      }
+      if (!ok) {
+        let sel = window.getSelection();
+        let range = document.createRange();
+        range.selectNodeContents(resultDiv);
+        sel.removeAllRanges(); sel.addRange(range);
+        try {
+          ok = document.execCommand('copy');
+        } catch (e) { ok = false; }
+        sel.removeAllRanges();
+        showToast(ok ? "Copied!" : "Copy failed", ok);
+      }
+    }
+    // --- Persistence & Encryption ---
+    function saveUI() {
+      if (!masterPW) return;
+      let obj = {
+        text: document.getElementById('editable').innerHTML,
+        replacements: getReplacements()
+      };
+      saveToDB(obj);
+    }
+    async function restoreUI(obj) {
+      document.getElementById('editable').innerHTML = obj.text || '';
+      setReplacements(obj.replacements || []);
+      document.getElementById('result').innerHTML = '';
+    }
+    // --- Import/Export List: encrypted, password required ---
+    function openExportModal() {
+      openModal("Enter password to encrypt export:", async (pw) => {
+        try {
+          let replaces = getReplacements();
+          let enc = await encryptData(replaces, pw);
+          let blob = new Blob([enc], {type:"application/octet-stream"});
+          let a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = "replacements.encjson";
+          a.click();
+          setTimeout(()=>URL.revokeObjectURL(a.href), 600);
+          showToast("Exported!", true);
+        } catch (e) {
+          showToast("Export failed!", false);
+        }
+      });
+    }
+    function openImportModal() {
+      openModal("Enter password to decrypt import:", (pw) => {
+        window.__importPw = pw;
+        document.getElementById('importFile').click();
+      });
+    }
+    function onImportFile(e) {
+      let file = e.target.files[0];
+      if (!file) return;
+      let reader = new FileReader();
+      reader.onload = async function(ev) {
+        try {
+          let enc = ev.target.result;
+          let replaces = await decryptData(enc, window.__importPw || '');
+          window.__importPw = undefined;
+          if (Array.isArray(replaces)) {
+            setReplacements(replaces);
+            saveUI();
+            showToast("List imported!", true);
+          } else throw "Format error";
+        } catch (e) { showToast("Import failed!", false); }
+      }
+      reader.readAsText(file);
+    }
+    // --- Modal for export/import password ---
+    function openModal(title, onOk) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-err').textContent = '';
+      document.getElementById('modal-pw').value = '';
+      document.getElementById('modal-overlay').style.display = '';
+      let handler = async function() {
+        let pw = document.getElementById('modal-pw').value;
+        if (!pw) {
+          document.getElementById('modal-err').textContent = 'Password is required';
+          return;
+        }
+        document.getElementById('modal-overlay').style.display = 'none';
+        onOk(pw);
+      };
+      let btn = document.getElementById('modal-ok');
+      btn.onclick = handler;
+      document.getElementById('modal-pw').onkeydown = function(e){if(e.key==="Enter")handler()};
+      setTimeout(()=>document.getElementById('modal-pw').focus(),100);
+    }
+    function closeModal() {
+      document.getElementById('modal-overlay').style.display = 'none';
+    }
+    // --- Password Modal for app access ---
+    function askPassword() {
+      document.getElementById('pw-err').textContent = '';
+      document.getElementById('pw-input').value = '';
+      document.getElementById('pw-modal').style.display = 'flex';
+      setTimeout(()=>document.getElementById('pw-input').focus(),100);
+    }
+    async function submitPassword() {
+      let pw = document.getElementById('pw-input').value;
+      if (!pw) {
+        document.getElementById('pw-err').textContent = 'Password is required';
+        return;
+      }
+      masterPW = pw;
+      let enc = await loadFromDB();
+      if (!enc) {
+        await saveToDB({text:'', replacements:[{from:'',to:''}]});
+        document.getElementById('pw-modal').style.display='none';
+        document.getElementById('main-ui').style.display='';
+        restoreUI({text:'', replacements:[{from:'',to:''}]});
+      } else {
+        let obj = await decryptData(enc, pw);
+        if (!obj) {
+          document.getElementById('pw-err').textContent = "Wrong password.";
+        } else {
+          document.getElementById('pw-modal').style.display='none';
+          document.getElementById('main-ui').style.display='';
+          restoreUI(obj);
+        }
+      }
+    }
+    // --- App reset ---
+    function confirmReset() {
+      if(confirm("Are you sure you want to reset Clnr? This will erase all your saved text and replacement lists. This cannot be undone!")) {
+        indexedDB.deleteDatabase(DB_NAME);
+        showToast("App reset. Please reload.", true);
+        setTimeout(()=>{location.reload();},1200);
+      }
+    }
+    // Save on any edit (but not auto-replace!)
+    document.addEventListener('input', function(e) {
+      if (!masterPW) return;
+      if (e.target.closest('.editable') || e.target.closest('#replace-tbody')) saveUI();
+    });
+    // --- Initialization ---
+    (async function() {
+      await openDB();
+      askPassword();
+    })();
+    window.addEventListener('beforeunload',saveUI);
+  </script>
+</body>
+</html>
