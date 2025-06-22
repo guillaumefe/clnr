@@ -682,8 +682,8 @@
           let obj = await decryptData(enc, window.__importPw || '');
           window.__importPw = undefined;
           if (obj && Array.isArray(obj.replacements)) {
-            horizontalDir = !('horizontalDir' in obj ? obj.horizontalDir : true);
-            verticalDir   = !('verticalDir'   in obj ? obj.verticalDir   : true);
+            horizontalDir = 'horizontalDir' in obj ? obj.horizontalDir : true;
+            verticalDir   = 'verticalDir'   in obj ? obj.verticalDir   : true;
             lastUniqueMark = obj.uniqueMark || '';
             document.getElementById('horizDir').checked = horizontalDir;
             document.getElementById('vertDir').checked = verticalDir;
