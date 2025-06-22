@@ -114,7 +114,7 @@
       <div class="desc">Find & replace multiple words and phrases instantly, safely on your device.<br>Your data stays private and encrypted.</div>
       <input id="pw-input" type="password" placeholder="Enter your password..." autocomplete="current-password" class="pw-input">
       <button type="button" onclick="submitPassword()" style="background:#3e5c4e;color:#fff;border:none;width:100%;padding:.7em 0;font-size:1.08em;border-radius:.6em;">Access Clnr</button>
-      <div id="pw-err" style="color:#e74c3c;font-size:.98em;min-height:1.2em;min-height:1.3em;"></div>
+      <div id="pw-err" style="color:#e74c3c;font-size:.98em;min-height:1.3em;"></div>
       <button type="button" class="reset-btn" onclick="confirmReset()">Reset app (forgot password?)</button>
       <div class="small-txt">This erases all local data. No recovery possible.</div>
     </div>
@@ -181,11 +181,13 @@
     let verticalDir = true;
     let currentReplacements = [];
     let lastUniqueMark = '';
+
     function hashShort(str) {
-      return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(b=>
-        Array.from(new Uint8Array(b)).slice(0,3).map(x=>x.toString(16).padStart(2,'0')).join('')
+      return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(b =>
+        Array.from(new Uint8Array(b)).slice(0,3).map(x => x.toString(16).padStart(2,'0')).join('')
       );
     }
+
     function matchCase(text, pattern) {
       if (pattern.toUpperCase() === pattern) {
         return text.toUpperCase();
@@ -198,87 +200,112 @@
       }
       return text;
     }
+
     function updateHashes() {
-      hashShort(document.getElementById('editable').innerText).then(h=> {
-        let e = document.getElementById('hash-edit'); e.textContent = h; e.className = 'hash-indicator';
+      hashShort(document.getElementById('editable').innerText).then(h => {
+        let e = document.getElementById('hash-edit');
+        e.textContent = h;
+        e.className = 'hash-indicator';
       });
       let res = document.getElementById('result').innerText.trim();
       let e = document.getElementById('hash-result');
-      if(res.length > 0) {
-        hashShort(res).then(h=>{ e.textContent = h; e.className = 'hash-indicator'; });
+      if (res.length > 0) {
+        hashShort(res).then(h => {
+          e.textContent = h;
+          e.className = 'hash-indicator';
+        });
       } else {
         e.textContent = "";
       }
     }
+
     async function digest(str) {
       return await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
     }
+
     function toHex(arrayBuffer) {
-      return [...new Uint8Array(arrayBuffer)].map(x=>x.toString(16).padStart(2,'0')).join('');
+      return [...new Uint8Array(arrayBuffer)].map(x => x.toString(16).padStart(2,'0')).join('');
     }
+
     function fromHex(str) {
-      return Uint8Array.from(str.match(/.{2}/g).map(b=>parseInt(b,16)));
+      return Uint8Array.from(str.match(/.{2}/g).map(b => parseInt(b,16)));
     }
+
     async function getKey(pw) {
       let pwBytes = new TextEncoder().encode(pw);
       let keyMaterial = await window.crypto.subtle.importKey("raw", pwBytes, {name:"PBKDF2"}, false, ["deriveKey"]);
-      return await window.crypto.subtle.deriveKey({name:"PBKDF2",salt:pwBytes,iterations:50000,hash:"SHA-256"}, keyMaterial,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+      return await window.crypto.subtle.deriveKey(
+        {name:"PBKDF2", salt: pwBytes, iterations:50000, hash:"SHA-256"},
+        keyMaterial,
+        {name:"AES-GCM", length:256},
+        false,
+        ["encrypt","decrypt"]
+      );
     }
+
     async function encryptData(obj, pw) {
       let key = await getKey(pw);
       let iv = window.crypto.getRandomValues(new Uint8Array(12));
       let data = new TextEncoder().encode(JSON.stringify(obj));
-      let ct = await window.crypto.subtle.encrypt({name:"AES-GCM",iv}, key, data);
+      let ct = await window.crypto.subtle.encrypt({name:"AES-GCM", iv}, key, data);
       let ivhex = toHex(iv);
       let cthex = toHex(ct);
       return ivhex + ':' + cthex;
     }
+
     async function decryptData(enc, pw) {
       try {
         let [ivhex, cthex] = enc.split(':');
         let iv = fromHex(ivhex);
         let ct = fromHex(cthex);
         let key = await getKey(pw);
-        let plain = await window.crypto.subtle.decrypt({name:"AES-GCM",iv},key,ct);
+        let plain = await window.crypto.subtle.decrypt({name:"AES-GCM", iv}, key, ct);
         return JSON.parse(new TextDecoder().decode(plain));
-      } catch (e) { return null; }
+      } catch (e) {
+        return null;
+      }
     }
+
     function openDB() {
-      return new Promise((res,rej)=>{
-        let r = indexedDB.open(DB_NAME,1);
-        r.onerror=()=>rej(r.error);
-        r.onupgradeneeded=()=>{r.result.createObjectStore(DB_STORE);}
-        r.onsuccess=()=>{db=r.result;res();}
+      return new Promise((res, rej) => {
+        let r = indexedDB.open(DB_NAME, 1);
+        r.onerror = () => rej(r.error);
+        r.onupgradeneeded = () => { r.result.createObjectStore(DB_STORE); }
+        r.onsuccess = () => { db = r.result; res(); }
       });
     }
+
     function saveToDB(obj) {
-      return new Promise(async (res,rej)=>{
+      return new Promise(async (res, rej) => {
         let enc = await encryptData(obj, masterPW);
         let tx = db.transaction(DB_STORE, "readwrite");
         let store = tx.objectStore(DB_STORE);
         store.put(enc, "data");
-        tx.oncomplete=()=>res();
-        tx.onerror=()=>rej(tx.error);
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
       });
     }
+
     function loadFromDB() {
-      return new Promise((res,rej)=>{
+      return new Promise((res, rej) => {
         let tx = db.transaction(DB_STORE, "readonly");
         let store = tx.objectStore(DB_STORE);
         let getReq = store.get("data");
-        getReq.onsuccess=()=>res(getReq.result);
-        getReq.onerror=()=>rej(getReq.error);
+        getReq.onsuccess = () => res(getReq.result);
+        getReq.onerror = () => rej(getReq.error);
       });
     }
-    function showToast(msg, success=true) {
+
+    function showToast(msg, success = true) {
       let toast = document.getElementById('toast');
       toast.innerHTML = (success
         ? `<svg width="22" height="22" style="vertical-align:middle"><circle cx="11" cy="11" r="11" fill="#5f9e7b"/><path d="M7 11l3 3 5-5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`
         : `<svg width="22" height="22"><circle cx="11" cy="11" r="11" fill="#e74c3c"/><path d="M7 7l8 8M15 7l-8 8" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>`
-      )+`<span style="margin-left:.8em">${msg}</span>`;
+      ) + `<span style="margin-left:.8em">${msg}</span>`;
       toast.className = 'visible';
-      setTimeout(()=>{toast.className='';}, 1800);
+      setTimeout(() => { toast.className = ''; }, 1800);
     }
+
     function getReplacements() {
       const replaces = [];
       document.querySelectorAll('#replace-tbody tr').forEach(row => {
@@ -290,42 +317,73 @@
       });
       return verticalDir ? replaces.slice() : replaces.slice().reverse();
     }
+
     function renderReplaceTable(replaces) {
       const tbody = document.getElementById('replace-tbody');
       tbody.innerHTML = '';
-      (replaces||[]).forEach((x,i)=>addRow(x.from, x.to, false));
+      (replaces || []).forEach(x => addRow(x.from, x.to, false));
       if (!replaces || replaces.length === 0) addRow('', '', false);
     }
+
     function setReplacements(replaces) {
       currentReplacements = (replaces || []).slice();
       renderReplaceTable(currentReplacements);
       updateHashes();
     }
+
     function reorderRows() {
       const list = currentReplacements.slice().reverse();
       renderReplaceTable(list);
     }
+
+    function generateRandomString(length) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let s = '';
+      for (let i = 0; i < length; i++) {
+        s += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return s;
+    }
+
     function addRow(valFrom = '', valTo = '', focus = true) {
       const tbody = document.getElementById('replace-tbody');
       const tr = document.createElement('tr');
       tr.className = "replace-row";
+      tr.dataset.toTouched = valTo !== '';
+
       tr.innerHTML = `
         <td><input type="text" placeholder="Find" value="${valFrom}"></td>
         <td style="width:26px; text-align:center;" class="arrow-cell"></td>
         <td><input type="text" placeholder="Replace with" value="${valTo}"></td>
-        <td>
-          <button class="move-btn" title="Move up" onclick="moveRowUp(this)">↑</button>
-          <button class="move-btn" title="Move down" onclick="moveRowDown(this)">↓</button>
-          <button type="button" style="background:#eee;color:#a94442;border:none;border-radius:0.5em;padding:2px 10px;cursor:pointer;font-size:.96em;" title="Remove" onclick="removeRow(this)">✖</button>
-        </td>
+        <td>…</td>
       `;
       tbody.appendChild(tr);
-      updateCurrentReplacementsFromTable();
+
+      const fromInput = tr.children[0].querySelector('input');
+      const toInput   = tr.children[2].querySelector('input');
+
+      // 1) If user hasn't touched "Replace with", auto-generate a placeholder
+      fromInput.addEventListener('input', e => {
+        if (tr.dataset.toTouched === 'false') {
+          const len = e.target.value.length;
+          toInput.value = generateRandomString(len);
+          updateCurrentReplacementsFromTable();
+          saveUI();
+          updateHashes();
+        }
+      });
+
+      // 2) Lock once user types in "Replace with"
+      toInput.addEventListener('input', () => {
+        tr.dataset.toTouched = 'true';
+      });
+
       renderArrows();
       updateHashes();
       saveUI();
-      if (focus) setTimeout(()=>tr.querySelector('input').focus(),50);
+      if (focus) setTimeout(() => fromInput.focus(), 50);
     }
+
     function updateCurrentReplacementsFromTable() {
       const rows = document.querySelectorAll('#replace-tbody tr');
       currentReplacements = [];
@@ -335,6 +393,7 @@
         currentReplacements.push({ from, to });
       });
     }
+
     function moveRowUp(btn) {
       let tr = btn.closest('tr');
       let prev = tr.previousElementSibling;
@@ -344,6 +403,7 @@
       renderArrows();
       updateHashes();
     }
+
     function moveRowDown(btn) {
       let tr = btn.closest('tr');
       let next = tr.nextElementSibling;
@@ -353,6 +413,7 @@
       renderArrows();
       updateHashes();
     }
+
     function removeRow(btn) {
       btn.closest('tr').remove();
       updateCurrentReplacementsFromTable();
@@ -360,18 +421,21 @@
       renderArrows();
       updateHashes();
     }
+
     function updateDirLabels() {
       document.getElementById('horizArrow').textContent = horizontalDir ? '→' : '←';
       document.getElementById('vertArrow').textContent = verticalDir ? '↓' : '↑';
     }
+
     function renderArrows() {
       let rows = document.querySelectorAll('#replace-tbody tr');
-      rows.forEach(row=>{
+      rows.forEach(row => {
         let arrow = row.querySelector('.arrow-cell');
         arrow.textContent = horizontalDir ? '→' : '←';
       });
       updateDirLabels();
     }
+
     document.getElementById('horizDir').onchange = function() {
       horizontalDir = this.checked;
       renderArrows();
@@ -381,106 +445,129 @@
       reorderRows();
       updateDirLabels();
     };
+
     function showLoader() {
       document.getElementById('clnr-loader').classList.remove('hidden');
     }
+
     function updateLoader(pct) {
-        document.getElementById('clnr-progress-text').textContent = pct + ' %';
+      document.getElementById('clnr-progress-text').textContent = pct + ' %';
+      document.getElementById('clnr-progress-bar').style.setProperty('--progress', pct + '%');
     }
+
     function hideLoader() {
       document.getElementById('clnr-loader').classList.add('hidden');
     }
-async function doReplace() {
-  const editable   = document.getElementById('editable');
-  const resultDiv  = document.getElementById('result');
-  const replaces   = getReplacements();        // [{from,to},...]
-  const total      = replaces.length;
-  if (total === 0) return;
 
-  // initialisation de l’arbre DOM à modifier
-  const parser = new DOMParser();
-  const doc    = parser.parseFromString(
-    '<div>' + editable.innerHTML + '</div>',
-    'text/html'
-  );
+    async function doReplace() {
+      const editable   = document.getElementById('editable');
+      const resultDiv  = document.getElementById('result');
+      const replaces   = getReplacements();        // [{from,to},...]
+      const total      = replaces.length;
+      if (total === 0) return;
 
-  // (Re)génération du mark unique si nécessaire
-  if (!lastUniqueMark) {
-    lastUniqueMark = Date.now().toString(36)
-                   + Math.random().toString(36).slice(2,6);
-  }
-  let markID = 0;
-  let replacementCount = 0;
+      // initialize the DOM tree to modify
+      const parser = new DOMParser();
+      const doc    = parser.parseFromString(
+        '<div>' + editable.innerHTML + '</div>',
+        'text/html'
+      );
 
-  showLoader();                              // on affiche le loader
-  for (let i = 0; i < total; i++) {
-    const { from, to } = replaces[i];
-
-    // 1) on marque tous les occurences
-    function markTargets(node) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const fragments = [];
-        let lastIndex = 0, m;
-        const text = node.nodeValue;
-        const re   = new RegExp(escapeRegExp(from), 'gi');
-        while ((m = re.exec(text))) {
-          fragments.push(document.createTextNode(text.slice(lastIndex, m.index)));
-          const span = doc.createElement('span');
-          span.className = 'clnr-mark';
-          span.setAttribute('data-clnr', lastUniqueMark + '-' + (markID++));
-          span.textContent = m[0];
-          fragments.push(span);
-          lastIndex = re.lastIndex;
-        }
-        fragments.push(document.createTextNode(text.slice(lastIndex)));
-        if (fragments.length > 1) {
-          const parent = node.parentNode;
-          fragments.forEach(f => parent.insertBefore(f, node));
-          parent.removeChild(node);
-        }
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
-        for (let c = node.firstChild; c; c = c.nextSibling) {
-          markTargets(c);
-        }
+      // (Re)generate the unique mark if needed
+      if (!lastUniqueMark) {
+        lastUniqueMark = Date.now().toString(36)
+                       + Math.random().toString(36).slice(2,6);
       }
-    }
-    markTargets(doc.body);
+      let markID = 0;
+      let replacementCount = 0;
 
-    // 2) on remplace le texte marqué
-    doc.body.querySelectorAll('span.clnr-mark').forEach(span => {
-      if (!span.hasAttribute('data-done')
-          && span.textContent.toLowerCase() === from.toLowerCase()) {
-        span.textContent = matchCase(to, span.textContent);
-        span.setAttribute('data-done', '1');
-        replacementCount++;
+      showLoader();  // display the loader
+
+      for (let i = 0; i < total; i++) {
+        const { from, to } = replaces[i];
+
+        // 1) mark all matches
+        function markTargets(node) {
+          // If this is an element already marked, don’t go any deeper
+          if (node.nodeType === Node.ELEMENT_NODE && node.hasAttribute('data-clnr')) {
+            return;
+          }
+
+          // If it’s a text node, split around matches and wrap them in <span>
+          if (node.nodeType === Node.TEXT_NODE) {
+            const fragments = [];
+            let lastIndex = 0, m;
+            const text = node.nodeValue;
+            const re   = new RegExp(escapeRegExp(from), 'gi');
+            while ((m = re.exec(text))) {
+              // Text before the match
+              fragments.push(document.createTextNode(text.slice(lastIndex, m.index)));
+              // Create a span to mark the match
+              const span = doc.createElement('span');
+              span.className = 'clnr-mark';
+              span.setAttribute('data-clnr', lastUniqueMark + '-' + (markID++));
+              span.textContent = m[0];
+              fragments.push(span);
+              lastIndex = re.lastIndex;
+            }
+            // Remaining text after the last match
+            fragments.push(document.createTextNode(text.slice(lastIndex)));
+            // If any splits were made, replace the original text node
+            if (fragments.length > 1) {
+              const parent = node.parentNode;
+              fragments.forEach(f => parent.insertBefore(f, node));
+              parent.removeChild(node);
+            }
+          }
+          // Otherwise, if it’s an element node, recurse into its children
+          else if (node.nodeType === Node.ELEMENT_NODE) {
+            for (let child = node.firstChild; child; child = child.nextSibling) {
+              markTargets(child);
+            }
+          }
+        }
+
+        markTargets(doc.body);
+
+        // 2) replace the marked text
+        doc.body.querySelectorAll('span[data-clnr]').forEach(span => {
+          if (!span.hasAttribute('data-done')
+              && span.textContent.toLowerCase() === from.toLowerCase()) {
+            span.textContent = matchCase(to, span.textContent);
+            span.setAttribute('data-done', '1');
+            span.classList.add('clnr-mark');
+            replacementCount++;
+          }
+        });
+
+        // 3) update the loader
+        const pct = Math.round(((i + 1) / total) * 100);
+        updateLoader(pct);
+
+        // 4) cooperative pause so the UI doesn’t freeze
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
-    });
 
-    // 3) mise à jour du loader
-    const pct = Math.round(((i + 1) / total) * 100);
-    updateLoader(pct);
+      // 5) clean up the marking spans
+      (function clean(node) {
+        if (node.nodeType === Node.ELEMENT_NODE
+            && node.classList.contains('clnr-mark')) {
+          node.removeAttribute('data-done');
+          node.classList.remove('clnr-mark');
+        }
+        node.childNodes.forEach(child => clean(child));
+      })(doc.body);
 
-    // 4) pause cooperative pour ne pas bloquer l’UI
-    await new Promise(resolve => setTimeout(resolve, 0));
-  }
-
-  // 5) nettoyage des spans de marquage
-  (function clean(node) {
-    if (node.nodeType === Node.ELEMENT_NODE
-        && node.classList.contains('clnr-mark')) {
-      node.removeAttribute('data-clnr');
-      node.removeAttribute('data-done');
-      node.classList.remove('clnr-mark');
+      // 6) render the result
+      resultDiv.innerHTML = doc.body.innerHTML;
+      updateHashes();
+      hideLoader();
     }
-    node.childNodes.forEach(child => clean(child));
-  })(doc.body);
 
-  // 6) rendu du résultat
-  resultDiv.innerHTML = doc.body.innerHTML;
-  updateHashes();
-  hideLoader();
-}
-    function escapeRegExp(str) { return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    function escapeRegExp(str) {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     async function copyResult() {
       let resultDiv = document.getElementById('result');
       let html = resultDiv.innerHTML;
@@ -488,7 +575,10 @@ async function doReplace() {
       if (navigator.clipboard && window.ClipboardItem) {
         try {
           let blob = new Blob([html], {type: "text/html"});
-          await navigator.clipboard.write([new ClipboardItem({"text/html": blob, "text/plain": new Blob([resultDiv.innerText], {type:"text/plain"})})]);
+          await navigator.clipboard.write([new ClipboardItem({
+            "text/html": blob,
+            "text/plain": new Blob([resultDiv.innerText], {type:"text/plain"})
+          })]);
           showToast("Copied!", true);
           ok = true;
         } catch (e) {}
@@ -503,14 +593,31 @@ async function doReplace() {
         showToast(ok ? "Copied!" : "Copy failed", ok);
       }
     }
+
     function swapText() {
-      let left = document.getElementById('editable').innerHTML;
+      // 1) simply swap the HTML contents
+      let left  = document.getElementById('editable').innerHTML;
       let right = document.getElementById('result').innerHTML;
       document.getElementById('editable').innerHTML = right;
-      document.getElementById('result').innerHTML = left;
+      document.getElementById('result').innerHTML   = left;
+
+      // 2) toggle directions: if both were already false, set them both true; otherwise set both false
+      if (!horizontalDir && !verticalDir) {
+        horizontalDir = true;
+        verticalDir   = true;
+      } else {
+        horizontalDir = false;
+        verticalDir   = false;
+      }
+      document.getElementById('horizDir').checked = horizontalDir;
+      document.getElementById('vertDir').checked  = verticalDir;
+
+      // 3) update visuals
+      renderArrows();
       updateHashes();
       saveUI();
     }
+
     function saveUI() {
       if (!masterPW) return;
       let obj = {
@@ -520,6 +627,7 @@ async function doReplace() {
       };
       saveToDB(obj);
     }
+
     async function restoreUI(obj) {
       document.getElementById('editable').innerHTML = obj.text || '';
       setReplacements(obj.replacements || []);
@@ -527,6 +635,7 @@ async function doReplace() {
       document.getElementById('result').innerHTML = '';
       updateHashes();
     }
+
     function openExportModal() {
       openModal("Enter password to encrypt export:", async (pw) => {
         try {
@@ -542,17 +651,21 @@ async function doReplace() {
           a.href = URL.createObjectURL(blob);
           a.download = "replacements.encjson";
           a.click();
-          setTimeout(()=>URL.revokeObjectURL(a.href), 600);
+          setTimeout(() => URL.revokeObjectURL(a.href), 600);
           showToast("Exported!", true);
-        } catch (e) { showToast("Export failed!", false);}
+        } catch (e) {
+          showToast("Export failed!", false);
+        }
       });
     }
+
     function openImportModal() {
       openModal("Enter password to decrypt import:", (pw) => {
         window.__importPw = pw;
         document.getElementById('importFile').click();
       });
     }
+
     function onImportFile(e) {
       let file = e.target.files[0];
       if (!file) return;
@@ -583,10 +696,13 @@ async function doReplace() {
             saveUI();
             showToast("List imported!", true);
           } else throw "Format error";
-        } catch (e) { showToast("Import failed!", false);}
+        } catch (e) {
+          showToast("Import failed!", false);
+        }
       }
       reader.readAsText(file);
     }
+
     function openModal(title, onOk) {
       document.getElementById('modal-title').textContent = title;
       document.getElementById('modal-err').textContent = '';
@@ -603,18 +719,21 @@ async function doReplace() {
       };
       let btn = document.getElementById('modal-ok');
       btn.onclick = handler;
-      document.getElementById('modal-pw').onkeydown = function(e){if(e.key==="Enter")handler()};
-      setTimeout(()=>document.getElementById('modal-pw').focus(),100);
+      document.getElementById('modal-pw').onkeydown = function(e){ if(e.key==="Enter") handler(); };
+      setTimeout(() => document.getElementById('modal-pw').focus(), 100);
     }
+
     function closeModal() {
       document.getElementById('modal-overlay').style.display = 'none';
     }
+
     function askPassword() {
       document.getElementById('pw-err').textContent = '';
       document.getElementById('pw-input').value = '';
       document.getElementById('pw-modal').style.display = 'flex';
-      setTimeout(()=>document.getElementById('pw-input').focus(),100);
+      setTimeout(() => document.getElementById('pw-input').focus(), 100);
     }
+
     async function submitPassword() {
       if (!db) {
         await openDB();
@@ -646,13 +765,15 @@ async function doReplace() {
         }
       }
     }
+
     function confirmReset() {
-      if(confirm("Are you sure you want to reset Clnr? This will erase all your saved text and replacement lists. This cannot be undone!")) {
+      if (confirm("Are you sure you want to reset Clnr? This will erase all your saved text and replacement lists. This cannot be undone!")) {
         indexedDB.deleteDatabase(DB_NAME);
         showToast("App reset. Please reload.", true);
-        setTimeout(()=>{location.reload();},1200);
+        setTimeout(() => { location.reload(); }, 1200);
       }
     }
+
     document.getElementById('horizDir').checked = horizontalDir;
     document.getElementById('vertDir').checked = verticalDir;
     renderArrows();
@@ -668,7 +789,7 @@ async function doReplace() {
       await openDB();
       askPassword();
     })();
-    window.addEventListener('beforeunload',saveUI);
+    window.addEventListener('beforeunload', saveUI);
   </script>
 </body>
 </html>
