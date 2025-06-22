@@ -462,45 +462,45 @@
       document.getElementById('clnr-loader').classList.add('hidden');
     }
 
-async function doReplace() {
-  const inputDiv  = document.getElementById('editable');
-  const outputDiv = document.getElementById('result');
-
-  // 1) Get the replacement pairs already inverted or not, based on horizontalDir
-  const replacements = getReplacements()
-    .filter(({ from }) => from.trim().length > 0);
-
-  if (replacements.length === 0) return;
-
-  // 2) Read the source HTML only once
-  const sourceHTML = inputDiv.innerHTML;
-
-  // 3) Show the loader and give it a frame to paint
-  showLoader();
-  await new Promise(requestAnimationFrame);
-
-  // 4) Prepare the Map and global RegExp
-  const replacementMap = new Map(
-    replacements.map(({ from, to }) => [from.toLowerCase(), to])
-  );
-  const pattern = replacements
-    .map(({ from }) => escapeRegExp(from))
-    .join('|');
-  const regex = new RegExp(pattern, 'gi');
-
-  // 5) Single pass over sourceHTML to replace all matches
-  const resultHTML = sourceHTML.replace(regex, matched => {
-    const repl = replacementMap.get(matched.toLowerCase());
-    return matchCase(repl, matched);
-  });
-
-  // 6) Inject the resulting HTML into #result
-  outputDiv.innerHTML = resultHTML;
-  updateHashes();
-  hideLoader();
-}
-
-
+    async function doReplace() {
+      const inputDiv  = document.getElementById('editable');
+      const outputDiv = document.getElementById('result');
+    
+      // 1) Gather all non-empty replacement pairs (accounting for horizontalDir)
+      const replacements = getReplacements()
+        .filter(({ from }) => from.trim().length > 0);
+    
+      if (replacements.length === 0) return;
+    
+      // 2) Grab the rendered text (no HTML tags)
+      const sourceText = inputDiv.textContent;
+    
+      // 3) Show the loader and wait a frame so it actually appears
+      showLoader();
+      await new Promise(requestAnimationFrame);
+    
+      // 4) Build a map for fast lookup and a single combined regex
+      const replacementMap = new Map(
+        replacements.map(({ from, to }) => [from.toLowerCase(), to])
+      );
+      const pattern = replacements
+        .map(({ from }) => escapeRegExp(from))
+        .join('|');
+      const regex = new RegExp(pattern, 'gi');
+    
+      // 5) Run one pass over the text to replace all matches
+      const resultText = sourceText.replace(regex, matched => {
+        const replacement = replacementMap.get(matched.toLowerCase());
+        return matchCase(replacement, matched);
+      });
+    
+      // 6) Inject the result as plain text (so it can’t re-introduce HTML)
+      outputDiv.textContent = resultText;
+    
+      // 7) Update the hash indicator and hide the loader
+      updateHashes();
+      hideLoader();
+    }
 
     function escapeRegExp(str) {
       return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
