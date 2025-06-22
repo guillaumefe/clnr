@@ -375,7 +375,13 @@
 
       // 2) Lock once user types in "Replace with"
       toInput.addEventListener('input', () => {
-        tr.dataset.toTouched = 'true';
+          if (toInput.value === '') {
+            // if emptied, resume auto-generation
+            tr.dataset.toTouched = 'false';
+          } else {
+            // once non-empty, stop overwriting
+            tr.dataset.toTouched = 'true';
+          }
       });
 
       renderArrows();
