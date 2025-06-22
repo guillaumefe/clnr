@@ -497,81 +497,97 @@
       return txt;
     }
 
-    async function doReplace() {
-      const inputDiv  = document.getElementById('editable');
-      const outputDiv = document.getElementById('result');
-    
-      // 1) Gather all non-empty replacement pairs
-      const replacements = getReplacements()
-        .filter(({ from }) => from.trim().length > 0);
-      if (replacements.length === 0) return;
-    
-      // 2) Show loader & wait a frame
-      showLoader();
-      await new Promise(requestAnimationFrame);
-    
-      // 3) Build lookup map and combined regex
-      const replacementMap = new Map(
-        replacements.map(({ from, to }) => [from.toLowerCase(), to])
-      );
-      const pattern = replacements
-        .map(({ from }) => escapeRegExp(from))
-        .join('|');
-      const regex = new RegExp(pattern, 'gi');
-    
-      // 4) Clone the editable node (with all inline styling, colors, markup…)
-      const clone = inputDiv.cloneNode(true);
-    
-      // 5) Walk all TEXT nodes in the clone and record their boundaries
-      const walker     = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT, null, false);
-      const boundaries = [];   // { node, start, end }
-      let idx = 0, node;
-      while (node = walker.nextNode()) {
-        boundaries.push({ node, start: idx, end: idx + node.nodeValue.length });
-        idx += node.nodeValue.length;
-      }
-    
-      // 6) Find all matches in the concatenated text
-      const fullText = boundaries.map(b => b.node.nodeValue).join('');
-      const matches  = [];
-      let m;
-      while (m = regex.exec(fullText)) {
-        matches.push({ text: m[0], index: m.index, length: m[0].length });
-      }
-    
-      // 7) Replace each match **backwards** via Ranges (so earlier edits don’t shift later ones)
-      for (let i = matches.length - 1; i >= 0; i--) {
-        const { text: matchText, index: pos, length: len } = matches[i];
-        // find start & end boundary objects
-        const startB = boundaries.find(b => b.start <= pos && b.end > pos);
-        const endB   = boundaries.find(b => b.start < pos + len && b.end >= pos + len);
-    
-        const startNode   = startB.node;
-        const endNode     = endB.node;
-        const startOffset = pos - startB.start;
-        const endOffset   = pos + len - endB.start;
-    
-        const range = document.createRange();
-        range.setStart(startNode, startOffset);
-        range.setEnd(endNode, endOffset);
-    
-        // compute replacement with correct casing
-        const rawRepl = replacementMap.get(matchText.toLowerCase());
-        const repl    = matchCase(rawRepl, matchText);
-    
-        // delete the matched content across nodes, then insert our new text-node
-        range.deleteContents();
-        range.insertNode(document.createTextNode(repl));
-      }
-    
-      // 8) Empty out #result and append each child of our modified clone
-      outputDiv.innerHTML = '';
-      Array.from(clone.childNodes).forEach(n => outputDiv.appendChild(n));
-    
-      // 9) Update hash & hide loader
-      updateHashes();
-      hideLoader();
+
+
+async function doReplace() {
+  const inputDiv  = document.getElementById('editable');
+  const outputDiv = document.getElementById('result');
+
+  // 1) Récupérer et filtrer les remplacements
+  let reps = getReplacements().filter(r => r.from.trim().length > 0);
+  if (!reps.length) return;
+  if (!verticalDir) reps.reverse();
+
+  showLoader();
+  const total = reps.length;
+
+  // On part d'un clone vierge
+  let clone = inputDiv.cloneNode(true);
+
+  for (let pass = 0; pass < total; pass++) {
+    const { from, to } = reps[pass];
+
+    // 2) On collecte tous les TEXT_NODE pour reconstituer le texte brut
+    const walker1 = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT, null, false);
+    const boundaries = []; // { node, start, end }
+    let idx = 0, node;
+    while (node = walker1.nextNode()) {
+      boundaries.push({ node, start: idx, end: idx + node.nodeValue.length });
+      idx += node.nodeValue.length;
     }
+    const fullText = boundaries.map(b => b.node.nodeValue).join('');
+
+    // 3) On trouve toutes les occurrences de `from`
+    const re = new RegExp(escapeRegExp(from), 'gi');
+    const matches = [];
+    let m;
+    while (m = re.exec(fullText)) {
+      matches.push({ index: m.index, length: m[0].length, text: m[0] });
+    }
+
+    // 4) On remplace **en arrière** pour ne pas décaler les suivants
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const { index, length, text: matchedText } = matches[i];
+
+      // On retrouve le nœud de début et de fin
+      const startB = boundaries.find(b => b.start <= index  && b.end >  index);
+      const endB   = boundaries.find(b => b.start <  index+length && b.end >= index+length);
+
+      const range = document.createRange();
+      const startOffset = index  - startB.start;
+      const endOffset   = index+length - endB.start;
+      range.setStart(startB.node, startOffset);
+      range.setEnd(endB.node,   endOffset);
+
+      // On calcule le remplacement avec matchCase
+      const rawTo = to;
+      const repl  = matchCase(rawTo, matchedText);
+
+      // On applique
+      range.deleteContents();
+      range.insertNode(document.createTextNode(repl));
+    }
+
+    // 5) Mise à jour du loader
+    updateLoader(Math.round(((pass+1)/total)*100));
+    // On attend un tick pour l'UI
+    await new Promise(requestAnimationFrame);
+  }
+
+  // 6) Injection du résultat final
+  outputDiv.innerHTML = '';
+  Array.from(clone.childNodes).forEach(n => outputDiv.appendChild(n));
+
+  hideLoader();
+  updateHashes();
+
+  // 7) Vérification
+  verifyReplacements(reps, outputDiv);
+}
+
+
+
+
+
+function getAllText(container) {
+  return Array.from(container.childNodes)
+    .map(node => node.nodeType === Node.TEXT_NODE
+      ? node.data
+      : getStructuredText(node)
+    )
+    .join('');
+}
+
 
     function escapeRegExp(str) {
       return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
