@@ -144,6 +144,18 @@
         Array.from(new Uint8Array(b)).slice(0,3).map(x=>x.toString(16).padStart(2,'0')).join('')
       );
     }
+    function matchCase(text, pattern) {
+      if (pattern.toUpperCase() === pattern) {
+        return text.toUpperCase();
+      }
+      if (pattern.toLowerCase() === pattern) {
+        return text.toLowerCase();
+      }
+      if (pattern[0].toUpperCase() === pattern[0]) {
+        return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+      }
+      return text;
+    }
     function updateHashes() {
       hashShort(document.getElementById('editable').innerText).then(h=> {
         let e = document.getElementById('hash-edit'); e.textContent = h; e.className = 'hash-indicator';
@@ -369,11 +381,13 @@
       replaces.forEach(({from, to}) => {
         let marks = doc.body.querySelectorAll('span.clnr-mark');
         marks.forEach(mark => {
-          if (mark.textContent.toLowerCase() === from.toLowerCase() && !mark.hasAttribute('data-done')) {
-            mark.textContent = to;
-            mark.setAttribute('data-done', '1');
-            replacementCount++;
-          }
+        if (mark.textContent.toLowerCase() === from.toLowerCase() && !mark.hasAttribute('data-done')) {
+          const original = mark.textContent;
+          const adapted  = matchCase(to, original);
+          mark.textContent  = adapted;
+          mark.setAttribute('data-done', '1');
+          replacementCount++;
+        }
         });
       });
       let clean = (node) => {
