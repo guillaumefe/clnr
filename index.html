@@ -743,10 +743,7 @@
           input.type = 'text';
           input.id = 'modal-filename';
           input.placeholder = 'File name (without extension)';
-          input.style.fontSize = '1em';
-          input.style.borderRadius = '.4em';
-          input.style.padding = '.5em';
-          input.style.border = '1px solid #bbb';
+          input.className = 'pw-input';
           input.style.marginTop = '.6em';
       
           const form = document.getElementById('modal-form');
@@ -795,14 +792,6 @@
         if (!pw) {
           document.getElementById('modal-err').textContent = 'Password is required';
           return;
-        }
-      
-        if (document.getElementById('modal-filename')) {
-          let fileName = document.getElementById('modal-filename').value.trim();
-          if (!fileName) {
-            document.getElementById('modal-err').textContent = 'File name is required';
-            return;
-          }
         }
       
         document.getElementById('modal-overlay').style.display = 'none';
