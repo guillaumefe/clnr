@@ -441,6 +441,13 @@
       setTimeout(()=>document.getElementById('pw-input').focus(),100);
     }
     async function submitPassword() {
+      if (!db) {
+        await openDB(); // tente d’ouvrir si ce n’est pas déjà fait
+        if (!db) {
+          document.getElementById('pw-err').textContent = 'Database not ready, please reload the page.';
+          return;
+        }
+      }
       let pw = document.getElementById('pw-input').value;
       if (!pw) {
         document.getElementById('pw-err').textContent = 'Password is required';
