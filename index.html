@@ -364,26 +364,30 @@
       
       function getReplacements() {
         const replaces = [];
-        const seenFrom = new Set();
+        const seenTo = new Set();
+      
         document.querySelectorAll('#replace-tbody tr').forEach(row => {
-          const a = row.children[0].querySelector('input').value.trim();
-          const b = row.children[2].querySelector('input').value.trim();
+          const a = row.children[0].querySelector('input').value.trim();  // find
+          const b = row.children[2].querySelector('input').value.trim();  // replace with
+      
           const from = horizontalDir ? a : b;
           const to   = horizontalDir ? b : a;
       
-          if (from === '') return; // Ignore vide
+          if (from === '') return;  // Ignore empty "find"
       
-          if (!seenFrom.has(from)) {
-            seenFrom.add(from);
+          if (to !== '' && !seenTo.has(to)) {
+            seenTo.add(to);
             replaces.push({ from, to });
-          } else {
-            // Optionnel : signal visuel qu'un duplicata a été ignoré
-            row.children[0].querySelector('input').style.borderColor = 'red';
+            row.children[2].querySelector('input').style.borderColor = '';  // clean
+          } else if (to !== '') {
+            // Duplicate replacement value → ignore + highlight
+            row.children[2].querySelector('input').style.borderColor = 'red';
           }
         });
       
         return verticalDir ? replaces.slice() : replaces.slice().reverse();
       }
+
       
       function renderReplaceTable(replaces) {
         const tbody = document.getElementById('replace-tbody');
