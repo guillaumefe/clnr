@@ -97,6 +97,14 @@
       width: 3em;
       text-align: right;
       }
+      .sr-only {
+        position: absolute !important;
+        height: 1px; width: 1px;
+        overflow: hidden;
+        clip: rect(1px,1px,1px,1px);
+        white-space: nowrap;
+      }
+
       @media (max-width: 900px) {
       .container {flex-direction:column; padding:1.2rem;}
       .box{max-width:100%; min-width:0;}
@@ -112,8 +120,9 @@
   </head>
   <body>
     <h1 style="display:none">Clnr – Text Replacer</h1>
-    <div id="pw-modal" class="modal splash" style="display:flex;">
+    <div id="pw-modal" class="modal splash" style="display:flex;" role="dialog" aria-modal="true" aria-labelledby="pw-modal-title">
       <div class="splash-box">
+        <h2 id="pw-modal-title" class="clnr-logo">Clnr</h2>
         <div class="clnr-logo">Clnr</div>
         <div class="slogan">Find & replace, made simple</div>
         <div class="desc">Find & replace multiple words and phrases instantly, safely on your device.<br>Your data stays private and encrypted.</div>
@@ -124,8 +133,9 @@
         <div class="small-txt">This erases all local data. No recovery possible.</div>
       </div>
     </div>
-    <div id="modal-overlay" class="modal" style="display:none;">
+    <div id="modal-overlay" class="modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-box">
+        <h2 id="modal-title" style="font-size:1.11em; font-weight:bold;"></h2>
         <div id="modal-title" style="font-size:1.11em; font-weight:bold;"></div>
         <input id="modal-pw" type="password" placeholder="Password..." autocomplete="current-password" autofocus>
         <button id="modal-ok" style="background:#3e5c4e;color:#fff;border:none;">OK</button>
@@ -139,7 +149,7 @@
           <span class="hash-indicator" id="hash-edit"></span>
         </div>
         <div style="display:flex;gap:.6em;align-items:center;flex-wrap:wrap; margin-bottom:.3em;">
-          <button class="swap-btn" onclick="swapText()" title="Swap both sides">⇄</button>
+          <button class="swap-btn" onclick="swapText()" title="Swap both sides" aria-label="Swap both sides">⇄</button>
           <span style="font-size:.99em;">Replacement direction:</span>
           <label style="display:flex;align-items:center;gap:.32em;font-size:.96em;cursor:pointer;">
           <input type="checkbox" id="horizDir" style="margin:0; checked">
@@ -150,8 +160,30 @@
           <span id="vertArrow">↓</span>
           </label>
         </div>
-        <div id="editable" class="editable" contenteditable="true" spellcheck="true" aria-label="Text to process"></div>
-        <table id="replace-table">
+        <label for="editable">Text to process (editable field)</label>
+        <div
+          id="editable"
+          class="editable"
+          contenteditable="true"
+          spellcheck="true"
+          role="textbox"
+          aria-multiline="true"
+          aria-label="Text to process"
+          aria-describedby="editable-desc"
+          tabindex="0">
+        </div>
+        <div id="editable-desc" class="sr-only">
+          Enter or paste the text you want to process. This field is editable.
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Find</th>
+              <th scope="col"></th>
+              <th scope="col">Replace with</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
           <tbody id="replace-tbody"></tbody>
         </table>
         <button type="button" class="add-row" onclick="addRow()">+ Add replacement</button>
@@ -176,7 +208,7 @@
         </div>
       </div>
     </div>
-    <div id="toast"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
     <input type="file" id="importFile" accept=".encjson,application/octet-stream" style="display:none" onchange="onImportFile(event)">
     <script>
       const DB_NAME = "enc-clnr";
@@ -360,11 +392,18 @@
         tr.className = "replace-row";
         tr.dataset.fromTouched = valFrom !== '';
         tr.dataset.toTouched   = 'false';
-      
+
+        const uuid = generateUUID();
         tr.innerHTML = `
-          <td><input type="text" placeholder="Find" value="${valFrom}"></td>
+          <td>
+            <label for="from-${uuid}" class="sr-only">Find text to replace</label>
+            <input type="text" placeholder="Find" value="${valFrom}" aria-label="Find text to replace">
+          </td>
           <td style="width:26px; text-align:center;" class="arrow-cell"></td>
-          <td><input type="text" placeholder="Replace with" value="${valTo}"></td>
+          <td>
+            <label for="to-${uuid}" class="sr-only">Replacement text</label>
+            <input type="text" placeholder="Replace with" value="${valTo}" aria-label="Replacement text">
+          </td>
           <td style="white-space: nowrap;">
             <button type="button" class="move-btn" title="Move up" onclick="moveRowUp(this)">↑</button>
             <button type="button" class="move-btn" title="Move down" onclick="moveRowDown(this)">↓</button>
@@ -751,6 +790,27 @@
         }
         reader.readAsText(file);
       }
+
+      function trapFocus(modal) {
+        const focusableEls = modal.querySelectorAll('input, button, [tabindex]:not([tabindex="-1"])');
+        const first = focusableEls[0], last = focusableEls[focusableEls.length - 1];
+        modal.addEventListener('keydown', function(e){
+          if (e.key === 'Tab') {
+            if (e.shiftKey) { // Shift+Tab
+              if (document.activeElement === first) {
+                last.focus();
+                e.preventDefault();
+              }
+            } else { // Tab
+              if (document.activeElement === last) {
+                first.focus();
+                e.preventDefault();
+              }
+            }
+          }
+          if (e.key === 'Escape') closeModal();
+        });
+      }
       
       function openModal(title, onOk) {
         document.getElementById('modal-title').textContent = title;
@@ -770,6 +830,7 @@
         btn.onclick = handler;
         document.getElementById('modal-pw').onkeydown = function(e){ if(e.key==="Enter") handler(); };
         setTimeout(() => document.getElementById('modal-pw').focus(), 100);
+        trapFocus(document.getElementById('modal-overlay'));
       }
       
       function closeModal() {
@@ -780,7 +841,10 @@
         document.getElementById('pw-err').textContent = '';
         document.getElementById('pw-input').value = '';
         document.getElementById('pw-modal').style.display = 'flex';
-        setTimeout(() => document.getElementById('pw-input').focus(), 100);
+        setTimeout(() => {
+          document.getElementById('pw-input').focus();
+          trapFocus(pwModal);
+        }, 100);
       }
       
       async function submitPassword() {
@@ -821,6 +885,12 @@
         if (!btn) return;
         const label = btn.getAttribute('title') || btn.textContent.trim();
         showToast(`✔ ${label}`, true);
+      });
+
+      document.getElementById('editable').addEventListener('keydown', function(e){
+        if (e.key === 'Escape') {
+          e.target.blur();
+        }
       });
       
       document.getElementById('horizDir').checked = horizontalDir;
