@@ -76,10 +76,8 @@
       <div class="clnr-logo">Clnr</div>
       <div class="slogan">Find & replace, made simple</div>
       <div class="desc">Find & replace multiple words and phrases instantly, safely on your device.<br>Your data stays private and encrypted.</div>
-      <form onsubmit="submitPassword();return false" style="width:100%;">
-        <input id="pw-input" type="password" placeholder="Enter your password..." autocomplete="current-password" class="pw-input">
-        <button type="submit" style="background:#3e5c4e;color:#fff;border:none;width:100%;padding:.7em 0;font-size:1.08em;border-radius:.6em;">Access Clnr</button>
-      </form>
+      <input id="pw-input" type="password" placeholder="Enter your password..." autocomplete="current-password" class="pw-input">
+      <button type="button" onclick="submitPassword()" style="background:#3e5c4e;color:#fff;border:none;width:100%;padding:.7em 0;font-size:1.08em;border-radius:.6em;">Access Clnr</button>
       <div id="pw-err" style="color:#e74c3c;font-size:.98em;min-height:1.2em;min-height:1.3em;"></div>
       <button type="button" class="reset-btn" onclick="confirmReset()">Reset app (forgot password?)</button>
       <div class="small-txt">This erases all local data. No recovery possible.</div>
@@ -128,7 +126,7 @@
       <div class="label">Result:
         <span class="hash-indicator" id="hash-result"></span>
       </div>
-      <div id="result" class="result" contenteditable="true" readonly></div>
+      <div id="result" class="result" contenteditable="false" readonly></div>
     </div>
   </div>
   <div id="toast"></div>
@@ -141,6 +139,7 @@
     let horizontalDir = true;
     let verticalDir = true;
     let currentReplacements = [];
+    let lastUniqueMark = '';
     function hashShort(str) {
       return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(b=>
         Array.from(new Uint8Array(b)).slice(0,3).map(x=>x.toString(16).padStart(2,'0')).join('')
@@ -228,12 +227,12 @@
       setTimeout(()=>{toast.className='';}, 1800);
     }
     function getReplacements() {
-      const rows = document.querySelectorAll('#replace-tbody tr');
       const replaces = [];
-      rows.forEach(row => {
-        let from, to;
-        from = row.children[0].querySelector('input').value;
-        to   = row.children[2].querySelector('input').value;
+      document.querySelectorAll('#replace-tbody tr').forEach(row => {
+        const a = row.children[0].querySelector('input').value;
+        const b = row.children[2].querySelector('input').value;
+        const from = horizontalDir ? a : b;
+        const to   = horizontalDir ? b : a;
         replaces.push({ from, to });
       });
       return verticalDir ? replaces.slice() : replaces.slice().reverse();
@@ -313,7 +312,6 @@
       document.getElementById('horizText').childNodes[1].textContent = horizontalDir ? ' Left to right' : ' Right to left';
       document.getElementById('vertText').textContent = verticalDir ? 'Top to bottom ↓' : 'Bottom to top ↑';
     }
-    
     function renderArrows() {
       let rows = document.querySelectorAll('#replace-tbody tr');
       rows.forEach(row=>{
@@ -322,12 +320,10 @@
       });
       updateDirLabels();
     }
-    
     document.getElementById('horizDir').onchange = function() {
       horizontalDir = this.checked;
       renderArrows();
     };
-    
     document.getElementById('vertDir').onchange = function() {
       verticalDir = this.checked;
       reorderRows();
@@ -338,7 +334,10 @@
       const resultDiv = document.getElementById('result');
       let html = editable.innerHTML;
       let replaces = getReplacements();
-      let uniqueMark = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+      let replacementCount = 0;
+      if (typeof lastUniqueMark !== 'string' || !lastUniqueMark) {
+        lastUniqueMark = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+      }
       let markID = 0;
       let parser = new DOMParser();
       let doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
@@ -352,7 +351,7 @@
           while ((m = re.exec(t))) {
             fragments.push(document.createTextNode(t.slice(lastIndex, m.index)));
             let span = doc.createElement('span');
-            span.setAttribute('data-clnr', uniqueMark+'-'+(markID++));
+            span.setAttribute('data-clnr', lastUniqueMark+'-'+(markID++));
             span.className = 'clnr-mark';
             span.textContent = m[0];
             fragments.push(span);
@@ -372,21 +371,26 @@
       replaces.forEach(({from, to}) => {
         let marks = doc.body.querySelectorAll('span.clnr-mark');
         marks.forEach(mark => {
-          if (mark.textContent && mark.textContent.toLowerCase() === from.toLowerCase() && !mark.hasAttribute('data-done')) {
+          if (mark.textContent.toLowerCase() === from.toLowerCase() && !mark.hasAttribute('data-done')) {
             mark.textContent = to;
             mark.setAttribute('data-done', '1');
+            replacementCount++;
           }
         });
       });
       let clean = (node) => {
         if (node.nodeType === Node.ELEMENT_NODE && node.className === 'clnr-mark') {
-          node.removeAttribute('data-clnr'); node.removeAttribute('data-done'); node.className = '';
+          node.removeAttribute('data-clnr');
+          node.removeAttribute('data-done');
+          node.className = '';
         }
         if (node.childNodes) for (let i=0;i<node.childNodes.length;i++) clean(node.childNodes[i]);
       };
       clean(doc.body);
-      resultDiv.innerHTML = doc.body.innerHTML;
-      updateHashes();
+      if (replacementCount > 0) {
+        resultDiv.innerHTML = doc.body.innerHTML;
+        updateHashes();
+      }
     }
     function escapeRegExp(str) { return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
     async function copyResult() {
@@ -423,13 +427,15 @@
       if (!masterPW) return;
       let obj = {
         text: document.getElementById('editable').innerHTML,
-        replacements: getReplacements()
+        replacements: getReplacements(),
+        uniqueMark: lastUniqueMark
       };
       saveToDB(obj);
     }
     async function restoreUI(obj) {
       document.getElementById('editable').innerHTML = obj.text || '';
       setReplacements(obj.replacements || []);
+      lastUniqueMark = obj.uniqueMark || '';
       document.getElementById('result').innerHTML = '';
       updateHashes();
     }
@@ -440,7 +446,8 @@
           let enc = await encryptData({
             replacements: replaces,
             horizontalDir,
-            verticalDir
+            verticalDir,
+            uniqueMark: lastUniqueMark
           }, pw);
           let blob = new Blob([enc], {type:"application/octet-stream"});
           let a = document.createElement('a');
@@ -470,6 +477,7 @@
           if (obj && Array.isArray(obj.replacements)) {
             horizontalDir = !('horizontalDir' in obj ? obj.horizontalDir : true);
             verticalDir   = !('verticalDir'   in obj ? obj.verticalDir   : true);
+            lastUniqueMark = obj.uniqueMark || '';
             document.getElementById('horizDir').checked = horizontalDir;
             document.getElementById('vertDir').checked = verticalDir;
             renderArrows();
@@ -479,6 +487,7 @@
           } else if (Array.isArray(obj)) {
             horizontalDir = false;
             verticalDir = false;
+            lastUniqueMark = '';
             document.getElementById('horizDir').checked = horizontalDir;
             document.getElementById('vertDir').checked = verticalDir;
             renderArrows();
@@ -534,10 +543,10 @@
       masterPW = pw;
       let enc = await loadFromDB();
       if (!enc) {
-        await saveToDB({text:'', replacements:[{from:'',to:''}]});
+        await saveToDB({text:'', replacements:[{from:'',to:''}], uniqueMark: ''});
         document.getElementById('pw-modal').style.display='none';
         document.getElementById('main-ui').style.display='';
-        restoreUI({text:'', replacements:[{from:'',to:''}]});
+        restoreUI({text:'', replacements:[{from:'',to:''}], uniqueMark: ''});
       } else {
         let obj = await decryptData(enc, pw);
         if (!obj) {
