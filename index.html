@@ -336,13 +336,8 @@
       renderReplaceTable(list);
     }
 
-    function generateRandomString(length) {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      let s = '';
-      for (let i = 0; i < length; i++) {
-        s += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return s;
+    function generateUUID() {
+      return crypto.randomUUID();
     }
 
     function addRow(valFrom = '', valTo = '', focus = true) {
@@ -350,6 +345,7 @@
       const tr = document.createElement('tr');
       tr.className = "replace-row";
       tr.dataset.fromTouched = valFrom !== '';
+      tr.dataset.toTouched   = 'false';
 
       tr.innerHTML = `
         <td><input type="text" placeholder="Find" value="${valFrom}"></td>
@@ -366,7 +362,7 @@
       fromInput.addEventListener('input', e => {
         if (tr.dataset.toTouched === 'false') {
           const len = e.target.value.length;
-          toInput.value = generateRandomString(len);
+          toInput.value = generateUUID(len);
           updateCurrentReplacementsFromTable();
           saveUI();
           updateHashes();
