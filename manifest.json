@@ -1,0 +1,21 @@
+{
+  "name": "Clnr – Text Replacer",
+  "short_name": "Clnr",
+  "description": "Find & replace multiple words and phrases instantly, safely on your device.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f5f6",
+  "theme_color": "#3e5c4e",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
