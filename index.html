@@ -734,7 +734,30 @@
       }
       
       function openExportModal() {
-        openModal("Enter password to encrypt export:", async (pw) => {
+        document.getElementById('modal-title').textContent = "Export replacements";
+        document.getElementById('modal-err').textContent = '';
+        document.getElementById('modal-pw').value = '';
+      
+        if (!document.getElementById('modal-filename')) {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.id = 'modal-filename';
+          input.placeholder = 'File name (without extension)';
+          input.style.fontSize = '1em';
+          input.style.borderRadius = '.4em';
+          input.style.padding = '.5em';
+          input.style.border = '1px solid #bbb';
+          input.style.marginTop = '.6em';
+      
+          const form = document.getElementById('modal-form');
+          form.insertBefore(input, form.firstChild);
+        }
+      
+        document.getElementById('modal-overlay').style.display = '';
+        window.modalOkCallback = async (pw) => {
+          const fileNameInput = document.getElementById('modal-filename').value.trim();
+          const fileName = fileNameInput !== '' ? fileNameInput : 'replacements';
+      
           try {
             let replaces = getReplacements();
             let exportKey = await getKey(pw);
@@ -744,17 +767,20 @@
               verticalDir,
               uniqueMark: lastUniqueMark
             }, exportKey);
-            let blob = new Blob([enc], {type:"application/octet-stream"});
+            let blob = new Blob([enc], { type: "application/octet-stream" });
             let a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = "replacements.encjson";
+            a.download = fileName + ".encjson";
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 600);
             showToast("Exported!", true);
           } catch (e) {
             showToast("Export failed!", false);
           }
-        });
+        };
+      
+        setTimeout(() => document.getElementById('modal-filename').focus(), 100);
+        trapFocus(document.getElementById('modal-overlay'));
       }
       
       function openImportModal() {
@@ -770,9 +796,19 @@
           document.getElementById('modal-err').textContent = 'Password is required';
           return;
         }
+      
+        if (document.getElementById('modal-filename')) {
+          let fileName = document.getElementById('modal-filename').value.trim();
+          if (!fileName) {
+            document.getElementById('modal-err').textContent = 'File name is required';
+            return;
+          }
+        }
+      
         document.getElementById('modal-overlay').style.display = 'none';
         if (window.modalOkCallback) window.modalOkCallback(pw);
       }
+
       
       function onImportFile(e) {
         let file = e.target.files[0];
