@@ -101,13 +101,12 @@
         <button class="swap-btn" onclick="swapText()" title="Swap both sides">⇄</button>
         <span style="font-size:.99em;">Replacement direction:</span>
         <label style="display:flex;align-items:center;gap:.32em;font-size:.96em;cursor:pointer;">
-          <input type="checkbox" id="horizDir" style="margin:0;">
-          <span id="horizText"><span id="horizArrow" style="font-size:1.13em;">→</span> Left to right</span>
+          <input type="checkbox" id="horizDir" style="margin:0; checked">
+          <span id="horizText"><span id="horizArrow" style="font-size:1.13em;">→
         </label>
-        <span style="margin-left:1em;font-size:.99em;">Order:</span>
         <label style="display:flex;align-items:center;gap:.32em;font-size:.96em;cursor:pointer;">
           <input type="checkbox" id="vertDir" style="margin:0;">
-          <span id="vertText">Top to bottom ↓</span>
+          <span id="vertArrow">↓</span>
         </label>
       </div>
       <div id="editable" class="editable" contenteditable="true" spellcheck="true" aria-label="Text to process"></div>
@@ -309,8 +308,7 @@
     }
     function updateDirLabels() {
       document.getElementById('horizArrow').textContent = horizontalDir ? '→' : '←';
-      document.getElementById('horizText').childNodes[1].textContent = horizontalDir ? ' Left to right' : ' Right to left';
-      document.getElementById('vertText').textContent = verticalDir ? 'Top to bottom ↓' : 'Bottom to top ↑';
+      document.getElementById('vertArrow').textContent = verticalDir ? '↓' : '↑';
     }
     function renderArrows() {
       let rows = document.querySelectorAll('#replace-tbody tr');
