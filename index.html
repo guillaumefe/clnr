@@ -349,7 +349,7 @@
       const tbody = document.getElementById('replace-tbody');
       const tr = document.createElement('tr');
       tr.className = "replace-row";
-      tr.dataset.toTouched = valTo !== '';
+      tr.dataset.fromTouched = valFrom !== '';
 
       tr.innerHTML = `
         <td><input type="text" placeholder="Find" value="${valFrom}"></td>
