@@ -465,110 +465,54 @@
       document.getElementById('clnr-loader').classList.add('hidden');
     }
 
-    async function doReplace() {
-      const editable   = document.getElementById('editable');
-      const resultDiv  = document.getElementById('result');
-      const replaces   = getReplacements();        // [{from,to},...]
-      const total      = replaces.length;
-      if (total === 0) return;
+async function doReplace() {
+  const inputDiv  = document.getElementById('editable');
+  const outputDiv = document.getElementById('result');
 
-      // initialize the DOM tree to modify
-      const parser = new DOMParser();
-      const doc    = parser.parseFromString(
-        '<div>' + editable.innerHTML + '</div>',
-        'text/html'
-      );
+  // 1) Lecture INVARIABLE des paires [Find → Replace]
+  const replacements = Array.from(
+    document.querySelectorAll('#replace-tbody tr')
+  )
+  .map(tr => {
+    const from = tr.children[0].querySelector('input').value.trim();
+    const to   = tr.children[2].querySelector('input').value;
+    return { from, to };
+  })
+  .filter(({from}) => from.length > 0);
 
-      // (Re)generate the unique mark if needed
-      if (!lastUniqueMark) {
-        lastUniqueMark = Date.now().toString(36)
-                       + Math.random().toString(36).slice(2,6);
-      }
-      let markID = 0;
-      let replacementCount = 0;
+  if (replacements.length === 0) return;
 
-      showLoader();  // display the loader
+  // 2) On lit UNE SEULE FOIS le HTML source
+  const sourceHTML = inputDiv.innerHTML;
 
-      for (let i = 0; i < total; i++) {
-        const { from, to } = replaces[i];
+  // 3) On affiche le loader et on lui laisse le temps de peindre
+  showLoader();
+  await new Promise(requestAnimationFrame);
 
-        // 1) mark all matches
-        function markTargets(node) {
-          // If this is an element already marked, don’t go any deeper
-          if (node.nodeType === Node.ELEMENT_NODE && node.hasAttribute('data-clnr')) {
-            return;
-          }
+  // 4) Préparation du Map + RegExp global
+  const replacementMap = new Map(
+    replacements.map(({from, to}) => [from.toLowerCase(), to])
+  );
+  const pattern = replacements
+    .map(({from}) => escapeRegExp(from))
+    .join('|');
+  const regex = new RegExp(pattern, 'gi');
 
-          // If it’s a text node, split around matches and wrap them in <span>
-          if (node.nodeType === Node.TEXT_NODE) {
-            const fragments = [];
-            let lastIndex = 0, m;
-            const text = node.nodeValue;
-            const re   = new RegExp(escapeRegExp(from), 'gi');
-            while ((m = re.exec(text))) {
-              // Text before the match
-              fragments.push(document.createTextNode(text.slice(lastIndex, m.index)));
-              // Create a span to mark the match
-              const span = doc.createElement('span');
-              span.className = 'clnr-mark';
-              span.setAttribute('data-clnr', lastUniqueMark + '-' + (markID++));
-              span.textContent = m[0];
-              fragments.push(span);
-              lastIndex = re.lastIndex;
-            }
-            // Remaining text after the last match
-            fragments.push(document.createTextNode(text.slice(lastIndex)));
-            // If any splits were made, replace the original text node
-            if (fragments.length > 1) {
-              const parent = node.parentNode;
-              fragments.forEach(f => parent.insertBefore(f, node));
-              parent.removeChild(node);
-            }
-          }
-          // Otherwise, if it’s an element node, recurse into its children
-          else if (node.nodeType === Node.ELEMENT_NODE) {
-            for (let child = node.firstChild; child; child = child.nextSibling) {
-              markTargets(child);
-            }
-          }
-        }
+  // 5) Passe unique sur sourceHTML
+  const resultHTML = sourceHTML.replace(regex, matched => {
+    const repl = replacementMap.get(matched.toLowerCase());
+    return matchCase(repl, matched);
+  });
 
-        markTargets(doc.body);
+  // 6) Injection UNIQUE dans #result
+  outputDiv.innerHTML = resultHTML;
+  updateHashes();
+  hideLoader();
+}
 
-        // 2) replace the marked text
-        doc.body.querySelectorAll('span[data-clnr]').forEach(span => {
-          if (!span.hasAttribute('data-done')
-              && span.textContent.toLowerCase() === from.toLowerCase()) {
-            span.textContent = matchCase(to, span.textContent);
-            span.setAttribute('data-done', '1');
-            span.classList.add('clnr-mark');
-            replacementCount++;
-          }
-        });
 
-        // 3) update the loader
-        const pct = Math.round(((i + 1) / total) * 100);
-        updateLoader(pct);
 
-        // 4) cooperative pause so the UI doesn’t freeze
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
 
-      // 5) clean up the marking spans
-      (function clean(node) {
-        if (node.nodeType === Node.ELEMENT_NODE
-            && node.classList.contains('clnr-mark')) {
-          node.removeAttribute('data-done');
-          node.classList.remove('clnr-mark');
-        }
-        node.childNodes.forEach(child => clean(child));
-      })(doc.body);
-
-      // 6) render the result
-      resultDiv.innerHTML = doc.body.innerHTML;
-      updateHashes();
-      hideLoader();
-    }
 
     function escapeRegExp(str) {
       return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
