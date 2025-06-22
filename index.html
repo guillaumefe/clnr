@@ -352,8 +352,13 @@
         <td><input type="text" placeholder="Find" value="${valFrom}"></td>
         <td style="width:26px; text-align:center;" class="arrow-cell"></td>
         <td><input type="text" placeholder="Replace with" value="${valTo}"></td>
-        <td>…</td>
+        <td style="white-space: nowrap;">
+          <button type="button" class="move-btn" title="Monter" onclick="moveRowUp(this)">↑</button>
+          <button type="button" class="move-btn" title="Descendre" onclick="moveRowDown(this)">↓</button>
+          <button type="button" class="move-btn" title="Remove" onclick="removeRow(this)">✕</button>
+        </td>
       `;
+
       tbody.appendChild(tr);
 
       const fromInput = tr.children[0].querySelector('input');
