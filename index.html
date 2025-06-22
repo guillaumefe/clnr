@@ -179,7 +179,6 @@
     <div id="toast"></div>
     <input type="file" id="importFile" accept=".encjson,application/octet-stream" style="display:none" onchange="onImportFile(event)">
     <script>
-      let masterPW = '';
       const DB_NAME = "enc-clnr";
       const DB_STORE = "main";
       let db = null;
@@ -187,7 +186,8 @@
       let verticalDir = true;
       let currentReplacements = [];
       let lastUniqueMark = '';
-      
+      let masterKey = null;
+      const SALT = new TextEncoder().encode("clnr"); 
       function hashShort(str) {
         return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(b =>
           Array.from(new Uint8Array(b)).slice(0,3).map(x => x.toString(16).padStart(2,'0')).join('')
@@ -237,20 +237,29 @@
         return Uint8Array.from(str.match(/.{2}/g).map(b => parseInt(b,16)));
       }
       
-      async function getKey(pw) {
-        let pwBytes = new TextEncoder().encode(pw);
-        let keyMaterial = await window.crypto.subtle.importKey("raw", pwBytes, {name:"PBKDF2"}, false, ["deriveKey"]);
-        return await window.crypto.subtle.deriveKey(
-          {name:"PBKDF2", salt: pwBytes, iterations:50000, hash:"SHA-256"},
-          keyMaterial,
-          {name:"AES-GCM", length:256},
+      async function getKey(password) {
+        const keyMaterial = await window.crypto.subtle.importKey(
+          "raw",
+          new TextEncoder().encode(password),
+          "PBKDF2",
           false,
-          ["encrypt","decrypt"]
+          ["deriveBits", "deriveKey"]
+        );
+        return await window.crypto.subtle.deriveKey(
+          {
+            name: "PBKDF2",
+            salt: SALT, 
+            iterations: 100_000, 
+            hash: "SHA-256"
+          },
+          keyMaterial,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["encrypt", "decrypt"]
         );
       }
       
-      async function encryptData(obj, pw) {
-        let key = await getKey(pw);
+      async function encryptData(obj, key) {
         let iv = window.crypto.getRandomValues(new Uint8Array(12));
         let data = new TextEncoder().encode(JSON.stringify(obj));
         let ct = await window.crypto.subtle.encrypt({name:"AES-GCM", iv}, key, data);
@@ -259,12 +268,11 @@
         return ivhex + ':' + cthex;
       }
       
-      async function decryptData(enc, pw) {
+      async function decryptData(enc, key) {
         try {
           let [ivhex, cthex] = enc.split(':');
           let iv = fromHex(ivhex);
           let ct = fromHex(cthex);
-          let key = await getKey(pw);
           let plain = await window.crypto.subtle.decrypt({name:"AES-GCM", iv}, key, ct);
           return JSON.parse(new TextDecoder().decode(plain));
         } catch (e) {
@@ -283,7 +291,7 @@
       
       function saveToDB(obj) {
         return new Promise(async (res, rej) => {
-          let enc = await encryptData(obj, masterPW);
+          let enc = await encryptData(obj, masterKey); // ici masterKey est la clé dérivée, pas le mdp
           let tx = db.transaction(DB_STORE, "readwrite");
           let store = tx.objectStore(DB_STORE);
           store.put(enc, "data");
@@ -448,7 +456,21 @@
         });
         updateDirLabels();
       }
-      
+
+      function confirmReset() {
+        if (!confirm("This will erase all local data and cannot be undone.\nAre you sure you want to reset the app?")) return;
+        openDB().then(() => {
+          let tx = db.transaction(DB_STORE, "readwrite");
+          let store = tx.objectStore(DB_STORE);
+          store.delete("data");
+          tx.oncomplete = () => {
+            showToast("App reset! Please reload or enter a new password.", true);
+            setTimeout(() => window.location.reload(), 900);
+          };
+          tx.onerror = () => showToast("Reset failed.", false);
+        });
+      }
+
       document.getElementById('horizDir').onchange = function() {
         horizontalDir = this.checked;
         renderArrows();
@@ -644,7 +666,7 @@
       
       
       function saveUI() {
-        if (!masterPW) return;
+        if (!masterKey) return;
         let obj = {
           text: document.getElementById('editable').innerHTML,
           replacements: getReplacements(),
@@ -665,12 +687,13 @@
         openModal("Enter password to encrypt export:", async (pw) => {
           try {
             let replaces = getReplacements();
+            let exportKey = await getKey(pw);
             let enc = await encryptData({
               replacements: replaces,
               horizontalDir,
               verticalDir,
               uniqueMark: lastUniqueMark
-            }, pw);
+            }, exportKey);
             let blob = new Blob([enc], {type:"application/octet-stream"});
             let a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -698,7 +721,8 @@
         reader.onload = async function(ev) {
           try {
             let enc = ev.target.result;
-            let obj = await decryptData(enc, window.__importPw || '');
+            let importKey = await getKey(window.__importPw || '');
+            let obj = await decryptData(enc, importKey);
             window.__importPw = undefined;
             if (obj && Array.isArray(obj.replacements)) {
               horizontalDir = 'horizontalDir' in obj ? obj.horizontalDir : true;
@@ -772,7 +796,7 @@
           document.getElementById('pw-err').textContent = 'Password is required';
           return;
         }
-        masterPW = pw;
+        masterKey = await getKey(pw);
         let enc = await loadFromDB();
         if (!enc) {
           await saveToDB({text:'', replacements:[{from:'',to:''}], uniqueMark: ''});
@@ -780,7 +804,7 @@
           document.getElementById('main-ui').style.display='';
           restoreUI({text:'', replacements:[{from:'',to:''}], uniqueMark: ''});
         } else {
-          let obj = await decryptData(enc, pw);
+          let obj = await decryptData(enc, masterKey); 
           if (!obj) {
             document.getElementById('pw-err').textContent = "Wrong password.";
           } else {
@@ -789,14 +813,7 @@
             restoreUI(obj);
           }
         }
-      }
-      
-      function confirmReset() {
-        if (confirm("Are you sure you want to reset Clnr? This will erase all your saved text and replacement lists. This cannot be undone!")) {
-          indexedDB.deleteDatabase(DB_NAME);
-          showToast("App reset. Please reload.", true);
-          setTimeout(() => { location.reload(); }, 1200);
-        }
+        pw = null;
       }
       
       document.addEventListener('click', function(e) {
@@ -811,7 +828,7 @@
       renderArrows();
       updateDirLabels();
       document.addEventListener('input', function(e) {
-        if (!masterPW) return;
+        if (!masterKey) return;
         if (e.target.closest('.editable') || e.target.closest('#replace-tbody')) {
           updateHashes();
           saveUI();
