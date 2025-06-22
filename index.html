@@ -446,6 +446,7 @@
               // once non-empty, stop overwriting
               tr.dataset.toTouched = 'true';
             }
+            checkDuplicateReplacements();
         });
       
         renderArrows();
@@ -462,6 +463,7 @@
           let to   = row.children[2].querySelector('input').value;
           currentReplacements.push({ from, to });
         });
+        checkDuplicateReplacements();
       }
       
       function moveRowUp(btn) {
@@ -886,6 +888,30 @@
           }
         }
         pw = null;
+      }
+
+      function checkDuplicateReplacements() {
+        const toValues = [];
+        let duplicate = false;
+      
+        document.querySelectorAll('#replace-tbody tr').forEach(row => {
+          const toVal = row.children[2].querySelector('input').value.trim();
+          if (toVal !== '') {
+            if (toValues.includes(toVal)) {
+              duplicate = true;
+              row.children[2].querySelector('input').style.borderColor = 'red';
+            } else {
+              toValues.push(toVal);
+              row.children[2].querySelector('input').style.borderColor = '';
+            }
+          }
+        });
+      
+        if (duplicate) {
+          showToast("Duplicate replacement values are not allowed!", false);
+        }
+      
+        return !duplicate;
       }
       
       document.addEventListener('click', function(e) {
