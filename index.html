@@ -131,6 +131,7 @@
         <div class="slogan">Find & replace, made simple</div>
         <div class="desc">Find & replace multiple words and phrases instantly, safely on your device.<br>Your data stays private and encrypted.</div>
         <form onsubmit="submitPassword(); return false;">
+          <input type="text" name="username" autocomplete="username" style="display:none" tabindex="-1">
           <input id="pw-input" type="password" placeholder="Enter your password..." autocomplete="current-password" class="pw-input">
           <button type="submit" style="background:#3e5c4e;color:#fff;border:none;width:100%;padding:.7em 0;font-size:1.08em;border-radius:.6em;">Access Clnr</button>
         </form>
@@ -144,11 +145,12 @@
         <h2 id="modal-title" style="font-size:1.11em; font-weight:bold;"></h2>
         <div id="modal-title-text" style="font-size:1.11em; font-weight:bold;"></div>
         <form id="modal-form" onsubmit="handleModalOk(event); return false;">
+          <input type="text" name="username" autocomplete="username" style="display:none" tabindex="-1">
           <input id="modal-pw" type="password" placeholder="Password..." autocomplete="current-password" autofocus>
           <button id="modal-ok" style="background:#3e5c4e;color:#fff;border:none;">OK</button>
+          <button onclick="closeModal()" style="background:#e5e6e7;color:#333;border:none;">Cancel</button>
+          <div id="modal-err" style="color:#e74c3c;font-size:.97em;min-height:1.2em"></div>
         </form>
-        <button onclick="closeModal()" style="background:#e5e6e7;color:#333;border:none;">Cancel</button>
-        <div id="modal-err" style="color:#e74c3c;font-size:.97em;min-height:1.2em"></div>
       </div>
     </div>
     <div class="container" id="main-ui" style="display:none;">
