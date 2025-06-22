@@ -364,13 +364,24 @@
       
       function getReplacements() {
         const replaces = [];
+        const seenFrom = new Set();
         document.querySelectorAll('#replace-tbody tr').forEach(row => {
-          const a = row.children[0].querySelector('input').value;
-          const b = row.children[2].querySelector('input').value;
+          const a = row.children[0].querySelector('input').value.trim();
+          const b = row.children[2].querySelector('input').value.trim();
           const from = horizontalDir ? a : b;
           const to   = horizontalDir ? b : a;
-          replaces.push({ from, to });
+      
+          if (from === '') return; // Ignore vide
+      
+          if (!seenFrom.has(from)) {
+            seenFrom.add(from);
+            replaces.push({ from, to });
+          } else {
+            // Optionnel : signal visuel qu'un duplicata a été ignoré
+            row.children[0].querySelector('input').style.borderColor = 'red';
+          }
         });
+      
         return verticalDir ? replaces.slice() : replaces.slice().reverse();
       }
       
@@ -462,6 +473,9 @@
           let from = row.children[0].querySelector('input').value;
           let to   = row.children[2].querySelector('input').value;
           currentReplacements.push({ from, to });
+        });
+        document.querySelectorAll('#replace-tbody tr input').forEach(input => {
+          input.style.borderColor = '';
         });
         checkDuplicateReplacements();
       }
