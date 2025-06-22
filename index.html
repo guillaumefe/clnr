@@ -56,6 +56,42 @@
     .swap-btn:active {background:#d7ebe3;}
     .move-btn {background:#eceff1; color:#3e5c4e; border:none; border-radius:.4em; padding:0.2em 0.6em; font-size:1em; margin:0 2px; cursor:pointer;}
     .move-btn:active {background:#d7ebe3;}
+    .loader {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(255,255,255,0.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+      transition: opacity .3s;
+    }
+    .loader.hidden { opacity: 0; pointer-events: none; }
+    .loader-inner {
+      background: #fff;
+      padding: 1em 1.5em;
+      border-radius: .6em;
+      box-shadow: 0 2px 12px rgba(0,0,0,.15);
+      display: flex; align-items: center; gap: .8em;
+    }
+    .progress-bar {
+      width: 200px; height: 8px;
+      background: #eee;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar::after {
+      content: "";
+      display: block;
+      width: 0; height: 100%;
+      background: #3e5c4e;
+      transition: width .2s;
+    }
+    .progress-text {
+      font-size: .95em;
+      color: #304b3e;
+      width: 3em;
+      text-align: right;
+    }
     @media (max-width: 900px) {
       .container {flex-direction:column; padding:1.2rem;}
       .box{max-width:100%; min-width:0;}
@@ -126,6 +162,12 @@
         <span class="hash-indicator" id="hash-result"></span>
       </div>
       <div id="result" class="result" contenteditable="false" readonly></div>
+    </div>
+    <div id="clnr-loader" class="loader hidden">
+      <div class="loader-inner">
+        <div id="clnr-progress-bar" class="progress-bar"></div>
+        <div id="clnr-progress-text" class="progress-text">0 %</div>
+      </div>
     </div>
   </div>
   <div id="toast"></div>
@@ -339,71 +381,105 @@
       reorderRows();
       updateDirLabels();
     };
-    function doReplace() {
-      const editable = document.getElementById('editable');
-      const resultDiv = document.getElementById('result');
-      let html = editable.innerHTML;
-      let replaces = getReplacements();
-      let replacementCount = 0;
-      if (typeof lastUniqueMark !== 'string' || !lastUniqueMark) {
-        lastUniqueMark = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-      }
-      let markID = 0;
-      let parser = new DOMParser();
-      let doc = parser.parseFromString('<div>' + html + '</div>', 'text/html');
-      function markTargets(node, term) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          let fragments = [];
-          let lastIndex = 0, idx;
-          let re = new RegExp(escapeRegExp(term), 'gi');
-          let m;
-          let t = node.nodeValue;
-          while ((m = re.exec(t))) {
-            fragments.push(document.createTextNode(t.slice(lastIndex, m.index)));
-            let span = doc.createElement('span');
-            span.setAttribute('data-clnr', lastUniqueMark+'-'+(markID++));
-            span.className = 'clnr-mark';
-            span.textContent = m[0];
-            fragments.push(span);
-            lastIndex = re.lastIndex;
-          }
-          fragments.push(document.createTextNode(t.slice(lastIndex)));
-          if (fragments.length > 1) {
-            let parent = node.parentNode;
-            fragments.forEach(f => parent.insertBefore(f, node));
-            parent.removeChild(node);
-          }
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-          for (let c = node.firstChild; c; c = c.nextSibling) markTargets(c, term);
+    function showLoader() {
+      document.getElementById('clnr-loader').classList.remove('hidden');
+    }
+    function updateLoader(pct) {
+        document.getElementById('clnr-progress-text').textContent = pct + ' %';
+    }
+    function hideLoader() {
+      document.getElementById('clnr-loader').classList.add('hidden');
+    }
+async function doReplace() {
+  const editable   = document.getElementById('editable');
+  const resultDiv  = document.getElementById('result');
+  const replaces   = getReplacements();        // [{from,to},...]
+  const total      = replaces.length;
+  if (total === 0) return;
+
+  // initialisation de l’arbre DOM à modifier
+  const parser = new DOMParser();
+  const doc    = parser.parseFromString(
+    '<div>' + editable.innerHTML + '</div>',
+    'text/html'
+  );
+
+  // (Re)génération du mark unique si nécessaire
+  if (!lastUniqueMark) {
+    lastUniqueMark = Date.now().toString(36)
+                   + Math.random().toString(36).slice(2,6);
+  }
+  let markID = 0;
+  let replacementCount = 0;
+
+  showLoader();                              // on affiche le loader
+  for (let i = 0; i < total; i++) {
+    const { from, to } = replaces[i];
+
+    // 1) on marque tous les occurences
+    function markTargets(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const fragments = [];
+        let lastIndex = 0, m;
+        const text = node.nodeValue;
+        const re   = new RegExp(escapeRegExp(from), 'gi');
+        while ((m = re.exec(text))) {
+          fragments.push(document.createTextNode(text.slice(lastIndex, m.index)));
+          const span = doc.createElement('span');
+          span.className = 'clnr-mark';
+          span.setAttribute('data-clnr', lastUniqueMark + '-' + (markID++));
+          span.textContent = m[0];
+          fragments.push(span);
+          lastIndex = re.lastIndex;
         }
-      }
-      replaces.forEach(({from}, idx) => markTargets(doc.body, from));
-      replaces.forEach(({from, to}) => {
-        let marks = doc.body.querySelectorAll('span.clnr-mark');
-        marks.forEach(mark => {
-        if (mark.textContent.toLowerCase() === from.toLowerCase() && !mark.hasAttribute('data-done')) {
-          const original = mark.textContent;
-          const adapted  = matchCase(to, original);
-          mark.textContent  = adapted;
-          mark.setAttribute('data-done', '1');
-          replacementCount++;
+        fragments.push(document.createTextNode(text.slice(lastIndex)));
+        if (fragments.length > 1) {
+          const parent = node.parentNode;
+          fragments.forEach(f => parent.insertBefore(f, node));
+          parent.removeChild(node);
         }
-        });
-      });
-      let clean = (node) => {
-        if (node.nodeType === Node.ELEMENT_NODE && node.className === 'clnr-mark') {
-          node.removeAttribute('data-clnr');
-          node.removeAttribute('data-done');
-          node.className = '';
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        for (let c = node.firstChild; c; c = c.nextSibling) {
+          markTargets(c);
         }
-        if (node.childNodes) for (let i=0;i<node.childNodes.length;i++) clean(node.childNodes[i]);
-      };
-      clean(doc.body);
-      if (replacementCount > 0) {
-        resultDiv.innerHTML = doc.body.innerHTML;
-        updateHashes();
       }
     }
+    markTargets(doc.body);
+
+    // 2) on remplace le texte marqué
+    doc.body.querySelectorAll('span.clnr-mark').forEach(span => {
+      if (!span.hasAttribute('data-done')
+          && span.textContent.toLowerCase() === from.toLowerCase()) {
+        span.textContent = matchCase(to, span.textContent);
+        span.setAttribute('data-done', '1');
+        replacementCount++;
+      }
+    });
+
+    // 3) mise à jour du loader
+    const pct = Math.round(((i + 1) / total) * 100);
+    updateLoader(pct);
+
+    // 4) pause cooperative pour ne pas bloquer l’UI
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+
+  // 5) nettoyage des spans de marquage
+  (function clean(node) {
+    if (node.nodeType === Node.ELEMENT_NODE
+        && node.classList.contains('clnr-mark')) {
+      node.removeAttribute('data-clnr');
+      node.removeAttribute('data-done');
+      node.classList.remove('clnr-mark');
+    }
+    node.childNodes.forEach(child => clean(child));
+  })(doc.body);
+
+  // 6) rendu du résultat
+  resultDiv.innerHTML = doc.body.innerHTML;
+  updateHashes();
+  hideLoader();
+}
     function escapeRegExp(str) { return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
     async function copyResult() {
       let resultDiv = document.getElementById('result');
