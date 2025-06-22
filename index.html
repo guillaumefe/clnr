@@ -12,7 +12,12 @@
     .label {font-weight:bold; margin-bottom:.35em; color:#262e36;}
     .editable,.result {min-height:108px; border:1px solid #ddd; border-radius:0.6em; padding:.7em .9em; background:#fcfcfc; outline:none; font-size:1.06rem; overflow-y:auto; color:#222; transition: border .18s;}
     .editable:focus {border-color: #5f9e7b;}
-    .result {background:#f7faf8;}
+    .result {
+      background: #f7faf8;
+      word-break: break-word;
+      font: inherit; 
+      white-space: inherit;
+    }
     table {width:100%; border-collapse:separate; border-spacing:0 4px;}
     td {padding:2px 4px;}
     input[type="text"] {width:100%; padding:5px; border-radius:0.4em; border:1px solid #ccc; font-size:1em; background:#f9f9f9;}
@@ -162,7 +167,7 @@
       <div class="label">Result:
         <span class="hash-indicator" id="hash-result"></span>
       </div>
-      <div id="result" class="result" contenteditable="false" readonly></div>
+      <pre id="result" class="result" contenteditable="false"></pre>
     </div>
     <div id="clnr-loader" class="loader hidden">
       <div class="loader-inner">
@@ -467,24 +472,45 @@
       document.getElementById('clnr-loader').classList.add('hidden');
     }
 
+    function getStructuredText(el) {
+      let txt = '';
+      el.childNodes.forEach(node => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          txt += node.data;
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const tag = node.tagName.toLowerCase();
+          if (tag === 'br') {
+            txt += '\n';
+          } else if (
+            ['p','div','section','article','li','ul','ol',
+             'h1','h2','h3','h4','h5','h6','blockquote']
+            .includes(tag)
+          ) {
+            // on prend le texte du bloc + un saut de ligne
+            txt += getStructuredText(node).replace(/\n+$/,'') + '\n';
+          } else {
+            // inline ou autre → on descend
+            txt += getStructuredText(node);
+          }
+        }
+      });
+      return txt;
+    }
+
     async function doReplace() {
       const inputDiv  = document.getElementById('editable');
       const outputDiv = document.getElementById('result');
     
-      // 1) Gather all non-empty replacement pairs (accounting for horizontalDir)
+      // 1) Gather all non-empty replacement pairs
       const replacements = getReplacements()
         .filter(({ from }) => from.trim().length > 0);
-    
       if (replacements.length === 0) return;
     
-      // 2) Grab the rendered text (no HTML tags)
-      const sourceText = inputDiv.textContent;
-    
-      // 3) Show the loader and wait a frame so it actually appears
+      // 2) Show loader & wait a frame
       showLoader();
       await new Promise(requestAnimationFrame);
     
-      // 4) Build a map for fast lookup and a single combined regex
+      // 3) Build lookup map and combined regex
       const replacementMap = new Map(
         replacements.map(({ from, to }) => [from.toLowerCase(), to])
       );
@@ -493,16 +519,56 @@
         .join('|');
       const regex = new RegExp(pattern, 'gi');
     
-      // 5) Run one pass over the text to replace all matches
-      const resultText = sourceText.replace(regex, matched => {
-        const replacement = replacementMap.get(matched.toLowerCase());
-        return matchCase(replacement, matched);
-      });
+      // 4) Clone the editable node (with all inline styling, colors, markup…)
+      const clone = inputDiv.cloneNode(true);
     
-      // 6) Inject the result as plain text (so it can’t re-introduce HTML)
-      outputDiv.textContent = resultText;
+      // 5) Walk all TEXT nodes in the clone and record their boundaries
+      const walker     = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT, null, false);
+      const boundaries = [];   // { node, start, end }
+      let idx = 0, node;
+      while (node = walker.nextNode()) {
+        boundaries.push({ node, start: idx, end: idx + node.nodeValue.length });
+        idx += node.nodeValue.length;
+      }
     
-      // 7) Update the hash indicator and hide the loader
+      // 6) Find all matches in the concatenated text
+      const fullText = boundaries.map(b => b.node.nodeValue).join('');
+      const matches  = [];
+      let m;
+      while (m = regex.exec(fullText)) {
+        matches.push({ text: m[0], index: m.index, length: m[0].length });
+      }
+    
+      // 7) Replace each match **backwards** via Ranges (so earlier edits don’t shift later ones)
+      for (let i = matches.length - 1; i >= 0; i--) {
+        const { text: matchText, index: pos, length: len } = matches[i];
+        // find start & end boundary objects
+        const startB = boundaries.find(b => b.start <= pos && b.end > pos);
+        const endB   = boundaries.find(b => b.start < pos + len && b.end >= pos + len);
+    
+        const startNode   = startB.node;
+        const endNode     = endB.node;
+        const startOffset = pos - startB.start;
+        const endOffset   = pos + len - endB.start;
+    
+        const range = document.createRange();
+        range.setStart(startNode, startOffset);
+        range.setEnd(endNode, endOffset);
+    
+        // compute replacement with correct casing
+        const rawRepl = replacementMap.get(matchText.toLowerCase());
+        const repl    = matchCase(rawRepl, matchText);
+    
+        // delete the matched content across nodes, then insert our new text-node
+        range.deleteContents();
+        range.insertNode(document.createTextNode(repl));
+      }
+    
+      // 8) Empty out #result and append each child of our modified clone
+      outputDiv.innerHTML = '';
+      Array.from(clone.childNodes).forEach(n => outputDiv.appendChild(n));
+    
+      // 9) Update hash & hide loader
       updateHashes();
       hideLoader();
     }
