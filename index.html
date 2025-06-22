@@ -392,7 +392,7 @@
       function renderReplaceTable(replaces) {
         const tbody = document.getElementById('replace-tbody');
         tbody.innerHTML = '';
-        (replaces || []).forEach(x => addRow(x.from, x.to, false));
+        (replaces || []).forEach(x => addRow(x.from, x.to, false, !!x.custom));
         if (!replaces || replaces.length === 0) addRow('', '', false);
       }
       
@@ -411,12 +411,13 @@
         return crypto.randomUUID();
       }
       
-      function addRow(valFrom = '', valTo = '', focus = true) {
+      function addRow(valFrom = '', valTo = '', focus = true, custom = false) {
         const tbody = document.getElementById('replace-tbody');
         const tr = document.createElement('tr');
         tr.className = "replace-row";
         tr.dataset.fromTouched = valFrom !== '';
-        tr.dataset.toTouched   = 'false';
+        tr.dataset.toTouched = custom ? 'true' : 'false';
+        toInput.value = valTo;
 
         const uuid = generateUUID();
         tr.innerHTML = `
@@ -476,7 +477,8 @@
         rows.forEach(row => {
           let from = row.children[0].querySelector('input').value;
           let to   = row.children[2].querySelector('input').value;
-          currentReplacements.push({ from, to });
+          let custom = row.dataset.toTouched === 'true';
+          currentReplacements.push({ from, to, custom });
         });
         document.querySelectorAll('#replace-tbody tr input').forEach(input => {
           input.style.borderColor = '';
