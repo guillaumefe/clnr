@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8">
     <title>Clnr – Text Replacer</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3e5c4e">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
       html,body {background:#f4f5f6; margin:0; min-height:100vh; font-family:sans-serif;}
@@ -909,6 +912,112 @@
         askPassword();
       })();
       window.addEventListener('beforeunload', saveUI);
+      
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log("Service Worker registered"))
+            .catch(err => console.warn("Service Worker registration failed:", err));
+        });
+      }
+
+      // Store the install prompt event for later use
+      let deferredPrompt;
+      
+      // Listen for the 'beforeinstallprompt' event (triggered when the app meets installability criteria)
+      window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent the default mini-infobar from appearing on mobile
+        e.preventDefault();
+        deferredPrompt = e;
+      
+        // If the toast already exists, don't create a new one
+        if (document.getElementById('install-toast')) return;
+      
+        // Create the toast container
+        const toast = document.createElement('div');
+        toast.id = 'install-toast';
+        toast.style.position = 'fixed';
+        toast.style.left = '50%';
+        toast.style.bottom = '2.2em';
+        toast.style.transform = 'translateX(-50%)';
+        toast.style.background = '#262e36';
+        toast.style.color = '#fff';
+        toast.style.padding = '1em 1.7em 1em 1.2em';
+        toast.style.borderRadius = '1em';
+        toast.style.fontSize = '1.09em';
+        toast.style.boxShadow = '0 2px 12px #0003';
+        toast.style.zIndex = 3000;
+        toast.style.display = 'flex';
+        toast.style.alignItems = 'center';
+        toast.style.gap = '.85em';
+      
+        // Add an icon to the toast
+        toast.innerHTML = `
+          <svg width="26" height="26" style="vertical-align:middle">
+            <circle cx="13" cy="13" r="13" fill="#5f9e7b"/>
+            <path d="M9 15l3 3 5-7" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>
+          </svg>`;
+      
+        // Add message text to the toast
+        const msg = document.createElement('span');
+        msg.textContent = "Install Clnr on your device?";
+        toast.appendChild(msg);
+      
+        // Create the "Install" button
+        const btn = document.createElement('button');
+        btn.textContent = "Install";
+        btn.className = "btn";
+        btn.style.background = '#3e5c4e';
+        btn.style.color = '#fff';
+        btn.style.marginLeft = '1em';
+        btn.style.padding = '.55em 1.2em';
+        btn.style.borderRadius = '0.7em';
+        btn.style.fontSize = '1em';
+        btn.style.border = 'none';
+        btn.style.cursor = 'pointer';
+      
+        // On button click, show the install prompt
+        btn.onclick = () => {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+              // Remove the toast if the user accepted the install
+              toast.remove();
+            }
+          });
+        };
+        toast.appendChild(btn);
+      
+        // Add a close button (×) to manually dismiss the toast
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = "&times;";
+        closeBtn.style.background = "none";
+        closeBtn.style.border = "none";
+        closeBtn.style.color = "#fff";
+        closeBtn.style.fontSize = "1.3em";
+        closeBtn.style.marginLeft = ".7em";
+        closeBtn.style.cursor = "pointer";
+        closeBtn.onclick = () => toast.remove();
+        toast.appendChild(closeBtn);
+      
+        // Append the toast to the document body
+        document.body.appendChild(toast);
+      
+        // Close the toast if the user clicks outside of it
+        setTimeout(() => {
+          document.addEventListener('click', function autoClose(e) {
+            if (!toast.contains(e.target)) {
+              toast.remove();
+              document.removeEventListener('click', autoClose);
+            }
+          });
+        }, 100);
+      
+        // Automatically remove the toast after 15 seconds
+        setTimeout(() => {
+          if (document.body.contains(toast)) toast.remove();
+        }, 15000);
+      });
     </script>
   </body>
 </html>
