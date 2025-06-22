@@ -153,6 +153,7 @@
       <div class="tool-row" style="margin-top:.8em;">
         <button class="btn" onclick="doReplace()">Replace</button>
         <button class="btn" style="background:#777;" onclick="copyResult()">Copy result</button>
+        <button class="btn" style="background:#d9534f; margin-left:.5em;" onclick="clearResult()">Clear result</button>
         <button class="btn" style="background:#e5e6e7; color:#2d3436;" onclick="openExportModal()">Export list</button>
         <button class="btn" style="background:#e5e6e7; color:#2d3436;" onclick="openImportModal()">Import list</button>
       </div>
@@ -531,6 +532,13 @@ async function doReplace() {
       }
     }
 
+    function clearResult() {
+      const outputDiv = document.getElementById('result');
+      outputDiv.innerHTML = '';        // vide la zone de résultat
+      updateHashes();                  // met à jour le hash (optionnel)
+      showToast("Résultat effacé !", true);  // message utilisateur
+    }
+    
     function swapText() {
       let left  = editable.innerHTML;
       let right = result.innerHTML;
