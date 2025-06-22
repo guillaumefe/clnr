@@ -465,48 +465,39 @@ async function doReplace() {
   const inputDiv  = document.getElementById('editable');
   const outputDiv = document.getElementById('result');
 
-  // 1) Lecture INVARIABLE des paires [Find → Replace]
-  const replacements = Array.from(
-    document.querySelectorAll('#replace-tbody tr')
-  )
-  .map(tr => {
-    const from = tr.children[0].querySelector('input').value.trim();
-    const to   = tr.children[2].querySelector('input').value;
-    return { from, to };
-  })
-  .filter(({from}) => from.length > 0);
+  // 1) Get the replacement pairs already inverted or not, based on horizontalDir
+  const replacements = getReplacements()
+    .filter(({ from }) => from.trim().length > 0);
 
   if (replacements.length === 0) return;
 
-  // 2) On lit UNE SEULE FOIS le HTML source
+  // 2) Read the source HTML only once
   const sourceHTML = inputDiv.innerHTML;
 
-  // 3) On affiche le loader et on lui laisse le temps de peindre
+  // 3) Show the loader and give it a frame to paint
   showLoader();
   await new Promise(requestAnimationFrame);
 
-  // 4) Préparation du Map + RegExp global
+  // 4) Prepare the Map and global RegExp
   const replacementMap = new Map(
-    replacements.map(({from, to}) => [from.toLowerCase(), to])
+    replacements.map(({ from, to }) => [from.toLowerCase(), to])
   );
   const pattern = replacements
-    .map(({from}) => escapeRegExp(from))
+    .map(({ from }) => escapeRegExp(from))
     .join('|');
   const regex = new RegExp(pattern, 'gi');
 
-  // 5) Passe unique sur sourceHTML
+  // 5) Single pass over sourceHTML to replace all matches
   const resultHTML = sourceHTML.replace(regex, matched => {
     const repl = replacementMap.get(matched.toLowerCase());
     return matchCase(repl, matched);
   });
 
-  // 6) Injection UNIQUE dans #result
+  // 6) Inject the resulting HTML into #result
   outputDiv.innerHTML = resultHTML;
   updateHashes();
   hideLoader();
 }
-
-
 
 
 
@@ -541,28 +532,21 @@ async function doReplace() {
     }
 
     function swapText() {
-      // 1) simply swap the HTML contents
-      let left  = document.getElementById('editable').innerHTML;
-      let right = document.getElementById('result').innerHTML;
-      document.getElementById('editable').innerHTML = right;
-      document.getElementById('result').innerHTML   = left;
-
-      // 2) toggle directions: if both were already false, set them both true; otherwise set both false
-      if (!horizontalDir && !verticalDir) {
-        horizontalDir = true;
-        verticalDir   = true;
-      } else {
-        horizontalDir = false;
-        verticalDir   = false;
-      }
-      document.getElementById('horizDir').checked = horizontalDir;
-      document.getElementById('vertDir').checked  = verticalDir;
-
-      // 3) update visuals
+      let left  = editable.innerHTML;
+      let right = result.innerHTML;
+      editable.innerHTML = right;
+      result.innerHTML   = left;
+    
+      horizontalDir = true;
+      verticalDir   = true;
+      document.getElementById('horizDir').checked = true;
+      document.getElementById('vertDir').checked  = true;
+    
       renderArrows();
       updateHashes();
       saveUI();
     }
+
 
     function saveUI() {
       if (!masterPW) return;
