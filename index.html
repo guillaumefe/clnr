@@ -591,8 +591,6 @@
         return txt;
       }
       
-      
-      
       async function doReplace() {
       const inputDiv  = document.getElementById('editable');
       const outputDiv = document.getElementById('result');
@@ -669,10 +667,6 @@
       verifyReplacements(reps, outputDiv);
       }
       
-      
-      
-      
-      
       function getAllText(container) {
       return Array.from(container.childNodes)
       .map(node => node.nodeType === Node.TEXT_NODE
@@ -681,7 +675,6 @@
       )
       .join('');
       }
-      
       
       function escapeRegExp(str) {
         return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -958,6 +951,45 @@
         }
       
         return !duplicate;
+      }
+
+      /**
+       * verifyReplacements
+       * Displays how many replacements were actually made out of how many were expected.
+       *
+       * @param {Array<{from: string, to: string}>} replacements - the list of replacements attempted
+       * @param {HTMLElement} resultContainer        - the element containing the replacement result
+       */
+      function verifyReplacements(replacements, resultContainer) {
+        // helper to get plain text from an element
+        const originalText = getAllText(document.getElementById('editable'));
+        const outputText   = getAllText(resultContainer);
+      
+        let totalDesired = 0;
+        let totalDone    = 0;
+      
+        replacements.forEach(r => {
+          if (!r.from) return;
+          // count desired occurrences in original (case-insensitive, global)
+          const reGi     = new RegExp(escapeRegExp(r.from), 'gi');
+          const desired  = (originalText.match(reGi) || []).length;
+          // count how many still remain in the output
+          const remaining = (outputText.match(reGi)  || []).length;
+          const done      = desired - remaining;
+      
+          totalDesired += desired;
+          totalDone    += (done > 0 ? done : 0);
+        });
+      
+        // build message
+        const msg = `Replaced ${totalDone}/${totalDesired} occurrences`;
+      
+        // if on-target, green toast; else red toast
+        if (totalDone === totalDesired) {
+          showToast(msg, true);
+        } else {
+          showToast(msg, false);
+        }
       }
       
       document.addEventListener('click', function(e) {
