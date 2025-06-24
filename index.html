@@ -14,13 +14,15 @@
       .container {display:flex; flex-wrap:wrap; gap:2rem; padding:2rem; justify-content:center;}
       .box {background:#fff; border-radius:1.1rem; box-shadow:0 3px 16px #0001; padding:1.25rem; min-width:260px; flex:1 1 320px; max-width:500px; display:flex; flex-direction:column; gap:1rem;}
       .label {font-weight:bold; margin-bottom:.35em; color:#262e36;}
-      .editable,.result {min-height:108px; border:1px solid #ddd; border-radius:0.6em; padding:.7em .9em; background:#fcfcfc; outline:none; font-size:1.06rem; overflow-y:auto; color:#222; transition: border .18s;}
+      .editable,.result {min-height:108px; border:1px solid #ddd; border-radius:0.6em; padding:.7em .9em; background:#fcfcfc; outline:none; overflow-y:auto; color:#222; transition: border .18s;}
+      .editable {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
       .editable:focus {border-color: #5f9e7b;}
       .result {
       background: #f7faf8;
       word-break: break-word;
-      font: inherit; 
-      white-space: inherit;
       }
       table {width:100%; border-collapse:separate; border-spacing:0 4px;}
       td {padding:2px 4px;}
@@ -171,7 +173,7 @@
           </label>
         </div>
         <label for="editable">Text to process (editable field)</label>
-        <div
+        <pre
           id="editable"
           class="editable"
           contenteditable="true"
@@ -181,7 +183,7 @@
           aria-label="Text to process"
           aria-describedby="editable-desc"
           tabindex="0">
-        </div>
+        </pre>
         <div id="editable-desc" class="sr-only">
           Enter or paste the text you want to process. This field is editable.
         </div>
